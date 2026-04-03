@@ -1,8 +1,8 @@
 // finize.js
 // Calls Gemini API with full financial context.
 
-const GEMINI_API_KEY = 'AIzaSyARek-y0nMglrmnGt4n6kkW1Wm9zI_vArg';
-const GEMINI_MODEL   = 'gemini-2.5-flash';
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 const logs = [];
 
@@ -14,9 +14,9 @@ function formatTransactions(transactions = []) {
 
   const total = transactions.reduce((s, t) => s + Number(t.amount || 0), 0);
   const lines = transactions.slice(-15).map((t, i) => {
-    const amt  = Number(t.amount || 0).toFixed(2);
+    const amt = Number(t.amount || 0).toFixed(2);
     const desc = t.merchant || t.category || 'Unknown';
-    const cat  = t.category ? ` [${t.category}]` : '';
+    const cat = t.category ? ` [${t.category}]` : '';
     const date = t.date ? ` on ${t.date}` : '';
     return `${i + 1}. ${desc} — ₹${amt}${cat}${date} (${t.type || 'debit'})`;
   });
@@ -29,13 +29,13 @@ function formatSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== 'object') return 'No snapshot available.';
 
   return [
-    snapshot.monthlySpend   != null && `Monthly spend: ₹${Number(snapshot.monthlySpend).toFixed(2)}`,
-    snapshot.budget         != null && `Monthly budget: ₹${Number(snapshot.budget).toFixed(2)}`,
+    snapshot.monthlySpend != null && `Monthly spend: ₹${Number(snapshot.monthlySpend).toFixed(2)}`,
+    snapshot.budget != null && `Monthly budget: ₹${Number(snapshot.budget).toFixed(2)}`,
     snapshot.budgetProgress != null && `Budget used: ${snapshot.budgetProgress}%`,
-    snapshot.savings        != null && `Savings: ₹${Number(snapshot.savings).toFixed(2)}`,
-    snapshot.level                  && `Level: ${snapshot.level}`,
-    snapshot.streak         != null && `Streak: ${snapshot.streak} days`,
-    snapshot.points         != null && `Points: ${snapshot.points}`,
+    snapshot.savings != null && `Savings: ₹${Number(snapshot.savings).toFixed(2)}`,
+    snapshot.level && `Level: ${snapshot.level}`,
+    snapshot.streak != null && `Streak: ${snapshot.streak} days`,
+    snapshot.points != null && `Points: ${snapshot.points}`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -43,9 +43,9 @@ function formatSnapshot(snapshot) {
 
 // ─── Build Gemini request payload ─────────────────────────────────────────────
 function buildPayload(message, transactions, user, history = [], snapshot = null) {
-  const userId    = (user && (user.email || user.id)) || 'anonymous';
+  const userId = (user && (user.email || user.id)) || 'anonymous';
   const txContext = formatTransactions(transactions);
-  const snapText  = formatSnapshot(snapshot);
+  const snapText = formatSnapshot(snapshot);
 
   const systemInstruction = {
     parts: [{
@@ -67,11 +67,11 @@ ${snapText}`.trim()
 
   const historyContents = Array.isArray(history)
     ? history
-        .filter(m => m.text && m.text.trim())
-        .map(m => ({
-          role:  m.from === 'finize' ? 'model' : 'user',
-          parts: [{ text: String(m.text) }],
-        }))
+      .filter(m => m.text && m.text.trim())
+      .map(m => ({
+        role: m.from === 'finize' ? 'model' : 'user',
+        parts: [{ text: String(m.text) }],
+      }))
     : [];
 
   return {
@@ -120,5 +120,5 @@ export async function getResponse(message, transactions = [], user = null, histo
   }
 }
 
-export function getLogs()   { return logs.slice(); }
+export function getLogs() { return logs.slice(); }
 export function clearLogs() { logs.length = 0; }

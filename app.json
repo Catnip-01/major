@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "palfin2",
-    "slug": "palfin2",
+    "slug": "palfin-major",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -21,10 +21,16 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.palfin2"
+      "package": "com.anonymous.palfin2",
+      "permissions": ["READ_SMS", "RECEIVE_SMS"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7b3b144c-dbb0-4236-8f83-35fbcae2cf0c"
+      }
     }
   }
 }
