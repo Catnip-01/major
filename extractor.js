@@ -1,45 +1,45 @@
 const extractTransaction = (message) => {
   if (!message) return null;
   const raw = message.trim();
-  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
 
-  // Amount - ALWAYS first line: "INR 1098.04 debited"
-  let amount = '';
+  // Find amount anywhere in the string
+  let amountMatch = raw.match(/(?:INR|Rs\.?|₹)\s?([0-9,]+(?:\.[0-9]+)?)/i);
+  if (!amountMatch) return null; // If no amount found, it's likely not a transaction
+
+  let amount = amountMatch[1].replace(/,/g, '');
   let currency = 'INR';
+
+  // Determine debit/credit
   let type = 'debit';
-  const firstLine = lines[0] || '';
-  const firstLineMatch = firstLine.match(/^(INR|Rs\.?|₹)\s?([0-9,]+(?:\.[0-9]+)?)\s+(debited|credited)/i);
-  if (firstLineMatch) {
-    currency = firstLineMatch[1];
-    amount = firstLineMatch[2].replace(/,/g, '');
-    type = firstLineMatch[3].toLowerCase() === 'credited' ? 'credit' : 'debit';
+  if (raw.match(/(credited|received|added|deposited|reversed)/i)) {
+    type = 'credit';
   }
 
-  // Account - second line: "A/c no. XX3659"
-  const accountMatch = raw.match(/[Aa]\/c\s*(?:no\.?)?\s*(XX\d+|\d+)/i);
+  // Account
+  const accountMatch = raw.match(/[Aa]\/?c\s*(?:no\.?)?\s*(X*\d+)/i);
   const account = accountMatch ? accountMatch[1] : '';
 
-  // Date - third line: "01-04-26, 20:47:55"
-  const dateMatch = raw.match(/(\d{2}[-/]\d{2}[-/]\d{2,4})/);
-  const date = dateMatch ? dateMatch[0] : '';
+  // Date
+  let date = '';
+  const dateMatch = raw.match(/(\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|\d{1,2}\s(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec))/i);
+  if (dateMatch) date = dateMatch[0];
 
-  // Merchant - from UPI string, last part after final slash
+  // Merchant
   let merchant = '';
-  const upiMatch = raw.match(/UPI\/[A-Z0-9]+\/[0-9]+\/([^\n/]+?)(?:\/[^\n]*)?(?:\n|$)/i);
-  if (upiMatch && upiMatch[1]) {
+  const upiMatch = raw.match(/UPI[/-].+?[/-].+?[/-]([^\s\n/]+)/i) || raw.match(/to\s+([A-Za-z0-9@\s]+?)(?:\s+on|\s+ref|\.|$)/i);
+  if (upiMatch && upiMatch[1] && upiMatch[1].length < 30) {
     merchant = upiMatch[1].trim();
   }
 
-  // Bank - last line
-  const bank = lines[lines.length - 1] || '';
-
-  if (!amount) return null;
+  // Bank (approximate)
+  const bankMatch = raw.match(/(SBI|HDFC|ICICI|Axis|Kotak|PNB|IDFC|IndusInd|Yes Bank|Bank of|Federal|Canara)/i);
+  const bank = bankMatch ? bankMatch[1] : '';
 
   return {
     raw,
     amount,
     currency,
-    merchant,
+    merchant: merchant || 'Unknown Merchant',
     date,
     type,
     account,

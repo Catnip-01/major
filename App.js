@@ -38,6 +38,7 @@ import { getResponse } from './finize';
 
 export default function App() {
   const [transactions, setTransactions] = useState([]);
+  const [allMessages, setAllMessages] = useState([]);
   const [chatHistory, setChatHistory] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -64,6 +65,7 @@ export default function App() {
         (fail) => { console.log('SMS read failed:', fail); setSmsLoading(false); },
         (count, smsList) => {
           const messages = JSON.parse(smsList);
+          setAllMessages(messages);
           const extracted = [];
           messages.forEach(msg => {
             const tx = extractTransaction(msg.body);
@@ -115,6 +117,11 @@ export default function App() {
         <TouchableOpacity style={[styles.tab, tab === 'transactions' && styles.activeTab]} onPress={() => setTab('transactions')}>
           <Text style={[styles.tabText, tab === 'transactions' && styles.activeTabText]}>
             Transactions ({transactions.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tab, tab === 'messages' && styles.activeTab]} onPress={() => setTab('messages')}>
+          <Text style={[styles.tabText, tab === 'messages' && styles.activeTabText]}>
+            Raw ({allMessages.length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -171,6 +178,23 @@ export default function App() {
                 </Text>
               </View>
               <Text style={styles.txDate}>{item.date || 'No date'}</Text>
+            </View>
+          )}
+        />
+      )}
+      {/* Messages Tab */}
+      {tab === 'messages' && (
+        <FlatList
+          data={allMessages}
+          keyExtractor={(item, i) => item._id?.toString() || i.toString()}
+          style={{ flex: 1, padding: 12 }}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No messages fetched yet.</Text>
+          }
+          renderItem={({ item }) => (
+            <View style={styles.txCard}>
+              <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>From: {item.address}</Text>
+              <Text style={{ color: '#222' }}>{item.body}</Text>
             </View>
           )}
         />
