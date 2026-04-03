@@ -1,7 +1,7 @@
 // finize.js
 // Calls Gemini API with full financial context.
 
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+// No hardcoded key here anymore. The key is passed dynamically from App.js.
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
 const logs = [];
@@ -84,8 +84,9 @@ ${snapText}`.trim()
 }
 
 // ─── Call Gemini ──────────────────────────────────────────────────────────────
-async function callGemini(message, transactions, user, history, snapshot) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+async function callGemini(message, transactions, user, history, snapshot, apiKey) {
+  if (!apiKey) throw new Error("Missing Gemini API Key");
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -109,9 +110,9 @@ async function callGemini(message, transactions, user, history, snapshot) {
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
-export async function getResponse(message, transactions = [], user = null, history = [], snapshot = null) {
+export async function getResponse(message, transactions = [], user = null, history = [], snapshot = null, apiKey = null) {
   try {
-    const text = await callGemini(message, transactions, user, history, snapshot);
+    const text = await callGemini(message, transactions, user, history, snapshot, apiKey);
     logs.push({ ts: Date.now(), message, response: text });
     return { response: text };
   } catch (err) {

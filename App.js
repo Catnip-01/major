@@ -21,7 +21,9 @@
 
 
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Markdown from 'react-native-markdown-display';
 import {
   ActivityIndicator,
   FlatList,
@@ -43,8 +45,25 @@ export default function App() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [smsLoading, setSmsLoading] = useState(false);
-  const [tab, setTab] = useState('chat'); // 'chat' or 'transactions'
+  const [tab, setTab] = useState('chat'); // 'chat' or 'transactions' or 'messages' or 'settings'
+  const [apiKey, setApiKey] = useState('');
+  const [tempKey, setTempKey] = useState('');
   const flatListRef = useRef(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem('GEMINI_API_KEY').then(key => {
+      if (key) {
+        setApiKey(key);
+        setTempKey(key);
+      }
+    });
+  }, []);
+
+  const saveApiKey = async () => {
+    await AsyncStorage.setItem('GEMINI_API_KEY', tempKey.trim());
+    setApiKey(tempKey.trim());
+    alert('API Key saved securely to your device!');
+  };
 
   // Request SMS permission and read messages
   const readSMS = async () => {
@@ -91,10 +110,15 @@ export default function App() {
     setLoading(true);
 
     try {
-      const { response } = await getResponse(input, transactions, null, newHistory, null);
+      if (!apiKey) {
+        setChatHistory(prev => [...prev, { from: 'finize', text: 'Please set your Gemini API Key in the Settings tab first!' }]);
+        setLoading(false);
+        return;
+      }
+      const { response } = await getResponse(input, transactions, null, newHistory, null, apiKey);
       setChatHistory(prev => [...prev, { from: 'finize', text: response }]);
     } catch (e) {
-      setChatHistory(prev => [...prev, { from: 'finize', text: 'Something went wrong. Try again.' }]);
+      setChatHistory(prev => [...prev, { from: 'finize', text: `Something went wrong: ${e.message}` }]);
     }
     setLoading(false);
   };
@@ -124,6 +148,9 @@ export default function App() {
             Raw ({allMessages.length})
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity style={[styles.tab, tab === 'settings' && styles.activeTab]} onPress={() => setTab('settings')}>
+          <Text style={[styles.tabText, tab === 'settings' && styles.activeTabText]}>Settings</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Chat Tab */}
@@ -137,7 +164,13 @@ export default function App() {
             onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
             renderItem={({ item }) => (
               <View style={[styles.bubble, item.from === 'user' ? styles.userBubble : styles.botBubble]}>
-                <Text style={styles.bubbleText}>{item.text}</Text>
+                {item.from === 'user' ? (
+                  <Text style={[styles.bubbleText, { color: '#fff' }]}>{item.text}</Text>
+                ) : (
+                  <Markdown style={markdownStyles}>
+                    {item.text}
+                  </Markdown>
+                )}
               </View>
             )}
             ListEmptyComponent={
@@ -199,6 +232,26 @@ export default function App() {
           )}
         />
       )}
+      {/* Settings Tab */}
+      {tab === 'settings' && (
+        <View style={{ flex: 1, padding: 20 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>Gemini API Key</Text>
+          <Text style={{ color: '#666', marginBottom: 20 }}>
+            Your API key is saved securely on this device and is never sent anywhere except directly to Google.
+          </Text>
+          <TextInput
+            style={[styles.textInput, { marginBottom: 20, paddingVertical: 12 }]}
+            value={tempKey}
+            onChangeText={setTempKey}
+            placeholder="Paste Gemini API Key here"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity style={[styles.sendBtn, { paddingVertical: 14 }]} onPress={saveApiKey}>
+            <Text style={[styles.sendBtnText, { textAlign: 'center' }]}>Save Settings</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -229,3 +282,16 @@ const styles = StyleSheet.create({
   txAmount: { fontWeight: '700', fontSize: 15 },
   txDate: { color: '#aaa', fontSize: 12, marginTop: 4 },
 });
+
+const markdownStyles = {
+  body: { color: '#222', fontSize: 14 },
+  paragraph: { marginTop: 0, marginBottom: 8 },
+  strong: { fontWeight: 'bold' },
+  em: { fontStyle: 'italic' },
+  heading1: { fontSize: 20, fontWeight: 'bold', marginVertical: 8 },
+  heading2: { fontSize: 18, fontWeight: 'bold', marginVertical: 8 },
+  heading3: { fontSize: 16, fontWeight: 'bold', marginVertical: 8 },
+  bullet_list: { marginBottom: 8 },
+  ordered_list: { marginBottom: 8 },
+  list_item: { marginBottom: 4 }
+};
