@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Markdown from 'react-native-markdown-display';
