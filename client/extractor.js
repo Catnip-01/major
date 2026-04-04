@@ -15,9 +15,16 @@ const extractTransaction = (message) => {
     type = 'credit';
   }
 
-  // Account
+  // Account (PII REDACTION)
   const accountMatch = raw.match(/[Aa]\/?c\s*(?:no\.?)?\s*(X*\d+)/i);
-  const account = accountMatch ? accountMatch[1] : '';
+  let account = accountMatch ? accountMatch[1] : '';
+  // Mask account numbers, keep only last 4 digits
+  if (account.length > 4) {
+    account = '*'.repeat(account.length - 4) + account.slice(-4);
+  }
+
+  // General Network PII: Redact clear unmasked phone numbers
+  const redactedRaw = raw.replace(/(?:\+?91[\-\s]?)?[6-9]\d{9}/g, '[REDACTED_PHONE]');
 
   // Date
   let date = '';
@@ -36,7 +43,7 @@ const extractTransaction = (message) => {
   const bank = bankMatch ? bankMatch[1] : '';
 
   return {
-    raw,
+    raw: redactedRaw,
     amount,
     currency,
     merchant: merchant || 'Unknown Merchant',

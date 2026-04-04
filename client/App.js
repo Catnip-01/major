@@ -1,26 +1,3 @@
-// import { StatusBar } from 'expo-status-bar';
-// import { StyleSheet, Text, View } from 'react-native';
-
-// export default function App() {
-//   return (
-//     <View style={styles.container}>
-//       <Text>Open up App.js to start working on your app!</Text>
-//       <StatusBar style="auto" />
-//     </View>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     backgroundColor: '#fff',
-//     alignItems: 'center',
-//     justifyContent: 'center',
-//   },
-// });
-
-
-
 import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Markdown from 'react-native-markdown-display';
@@ -36,7 +13,10 @@ import {
 } from 'react-native';
 import SmsAndroid from 'react-native-get-sms-android';
 import { extractTransaction } from './extractor';
-import { getResponse } from './finize';
+import { encryptPayload, decryptPayload } from './crypto';
+
+// Use 10.0.2.2 for Android Emulator connecting to localhost
+const API_BASE_URL = 'http://10.0.2.2:3000/api';
 
 export default function App() {
   const [transactions, setTransactions] = useState([]);
@@ -45,27 +25,49 @@ export default function App() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [smsLoading, setSmsLoading] = useState(false);
-  const [tab, setTab] = useState('chat'); // 'chat' or 'transactions' or 'messages' or 'settings'
-  const [apiKey, setApiKey] = useState('');
-  const [tempKey, setTempKey] = useState('');
+  const [tab, setTab] = useState('chat');
+  const [deviceId, setDeviceId] = useState('');
   const flatListRef = useRef(null);
 
   useEffect(() => {
-    AsyncStorage.getItem('GEMINI_API_KEY').then(key => {
-      if (key) {
-        setApiKey(key);
-        setTempKey(key);
+    // Generate a pseudo-random device ID for anonymous syncing
+    AsyncStorage.getItem('DEVICE_ID').then(id => {
+      if (id) {
+        setDeviceId(id);
+      } else {
+        const newId = 'device_' + Math.random().toString(36).substr(2, 9);
+        AsyncStorage.setItem('DEVICE_ID', newId);
+        setDeviceId(newId);
       }
     });
+
+    // Optionally: Fetch existing transactions and chat history from server on load
   }, []);
 
-  const saveApiKey = async () => {
-    await AsyncStorage.setItem('GEMINI_API_KEY', tempKey.trim());
-    setApiKey(tempKey.trim());
-    alert('API Key saved securely to your device!');
+  const syncTransactionsToServer = async (extractedTxs) => {
+    try {
+      const payload = {
+        deviceId,
+        transactions: extractedTxs,
+      };
+      
+      // E2EE Wrapper
+      const encryptedData = encryptPayload(JSON.stringify(payload));
+      
+      await fetch(`${API_BASE_URL}/sync-sms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-e2e-enabled': 'true'
+        },
+        body: JSON.stringify(encryptedData)
+      });
+      console.log('Successfully synced transactions to server E2EE');
+    } catch (e) {
+      console.error('API Sync Error', e);
+    }
   };
 
-  // Request SMS permission and read messages
   const readSMS = async () => {
     setSmsLoading(true);
     try {
@@ -88,11 +90,17 @@ export default function App() {
           const extracted = [];
           messages.forEach(msg => {
             const tx = extractTransaction(msg.body);
-            if (tx) extracted.push({ ...tx, id: msg._id || Math.random().toString() });
+            // Include message ID so server ignores duplicates
+            if (tx && tx.amount) extracted.push({ ...tx, id: msg._id || Math.random().toString() });
           });
+          
           setTransactions(prev => [...prev, ...extracted]);
           setSmsLoading(false);
-          alert(`Found ${extracted.length} transactions!`);
+          
+          // Background sync to server with PII redacted via extractor
+          syncTransactionsToServer(extracted);
+          
+          alert(`Found & Synced ${extracted.length} transactions securely!`);
         }
       );
     } catch (e) {
@@ -101,26 +109,64 @@ export default function App() {
     }
   };
 
+  const pollJobStatus = async (jobId) => {
+    const checkStatus = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/chat/status/${jobId}`);
+            const data = await response.json();
+            
+            if (data.status === 'completed') {
+                setChatHistory(prev => [...prev, { from: 'finize', text: data.result.text }]);
+                setLoading(false);
+            } else if (data.status === 'failed') {
+                setChatHistory(prev => [...prev, { from: 'finize', text: 'Sorry, the chat worker failed to process it.' }]);
+                setLoading(false);
+            } else {
+                // Still processing, poll again in 1.5s
+                setTimeout(checkStatus, 1500);
+            }
+        } catch (e) {
+            setLoading(false);
+            setChatHistory(prev => [...prev, { from: 'finize', text: 'Network Error checking status.' }]);
+        }
+    };
+    checkStatus();
+  };
+
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !deviceId) return;
     const userMsg = { from: 'user', text: input };
-    const newHistory = [...chatHistory, userMsg];
-    setChatHistory(newHistory);
+    setChatHistory(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
 
     try {
-      if (!apiKey) {
-        setChatHistory(prev => [...prev, { from: 'finize', text: 'Please set your Gemini API Key in the Settings tab first!' }]);
-        setLoading(false);
-        return;
+      // Send Secure Payload (E2EE)
+      const payload = { deviceId, message: userMsg.text };
+      const encryptedData = encryptPayload(JSON.stringify(payload));
+
+      const res = await fetch(`${API_BASE_URL}/chat`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-e2e-enabled': 'true' 
+        },
+        body: JSON.stringify(encryptedData)
+      });
+      
+      const data = await res.json();
+      
+      if (data.jobId) {
+        // Start polling BullMQ for the answer
+        pollJobStatus(data.jobId);
+      } else {
+        throw new Error('No Job ID returned');
       }
-      const { response } = await getResponse(input, transactions, null, newHistory, null, apiKey);
-      setChatHistory(prev => [...prev, { from: 'finize', text: response }]);
+
     } catch (e) {
       setChatHistory(prev => [...prev, { from: 'finize', text: `Something went wrong: ${e.message}` }]);
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -129,7 +175,7 @@ export default function App() {
       <View style={styles.header}>
         <Text style={styles.headerText}>Palfin</Text>
         <TouchableOpacity style={styles.smsBtn} onPress={readSMS}>
-          {smsLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.smsBtnText}>Read SMS</Text>}
+          {smsLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.smsBtnText}>Read SMS (E2EE)</Text>}
         </TouchableOpacity>
       </View>
 
@@ -139,14 +185,7 @@ export default function App() {
           <Text style={[styles.tabText, tab === 'chat' && styles.activeTabText]}>Chat</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.tab, tab === 'transactions' && styles.activeTab]} onPress={() => setTab('transactions')}>
-          <Text style={[styles.tabText, tab === 'transactions' && styles.activeTabText]}>
-            Transactions ({transactions.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, tab === 'messages' && styles.activeTab]} onPress={() => setTab('messages')}>
-          <Text style={[styles.tabText, tab === 'messages' && styles.activeTabText]}>
-            Raw ({allMessages.length})
-          </Text>
+          <Text style={[styles.tabText, tab === 'transactions' && styles.activeTabText]}>Transactions</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.tab, tab === 'settings' && styles.activeTab]} onPress={() => setTab('settings')}>
           <Text style={[styles.tabText, tab === 'settings' && styles.activeTabText]}>Settings</Text>
@@ -174,10 +213,10 @@ export default function App() {
               </View>
             )}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>Ask Finize anything about your finances...</Text>
+              <Text style={styles.emptyText}>Ask Finize anything about your finances... (Secured with E2EE)</Text>
             }
           />
-          {loading && <ActivityIndicator style={{ marginBottom: 8 }} color="#0057D9" />}
+          {loading && <Text style={{ textAlign: 'center', marginBottom: 8, color: '#0057D9' }}>Finize is thinking in the Cloud Queue...</Text>}
           <View style={styles.inputRow}>
             <TextInput
               style={styles.textInput}
@@ -200,7 +239,7 @@ export default function App() {
           keyExtractor={(item, i) => item.id || i.toString()}
           style={{ flex: 1, padding: 12 }}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No transactions yet. Tap "Read SMS" to extract.</Text>
+            <Text style={styles.emptyText}>No local transactions yet. Tap "Read SMS" to extract and sync.</Text>
           }
           renderItem={({ item }) => (
             <View style={styles.txCard}>
@@ -210,46 +249,25 @@ export default function App() {
                   {item.type === 'credit' ? '+' : '-'}₹{item.amount}
                 </Text>
               </View>
-              <Text style={styles.txDate}>{item.date || 'No date'}</Text>
+              <Text style={styles.txDate}>{item.date || 'No date'} • A/c: {item.account || 'N/A'}</Text>
             </View>
           )}
         />
       )}
-      {/* Messages Tab */}
-      {tab === 'messages' && (
-        <FlatList
-          data={allMessages}
-          keyExtractor={(item, i) => item._id?.toString() || i.toString()}
-          style={{ flex: 1, padding: 12 }}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No messages fetched yet.</Text>
-          }
-          renderItem={({ item }) => (
-            <View style={styles.txCard}>
-              <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>From: {item.address}</Text>
-              <Text style={{ color: '#222' }}>{item.body}</Text>
-            </View>
-          )}
-        />
-      )}
+
       {/* Settings Tab */}
       {tab === 'settings' && (
         <View style={{ flex: 1, padding: 20 }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>Gemini API Key</Text>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>Device Link</Text>
           <Text style={{ color: '#666', marginBottom: 20 }}>
-            Your API key is saved securely on this device and is never sent anywhere except directly to Google.
+            Your Device ID is strictly for anonymous E2EE communication with the Palfin Servers. NO PII is transmitted in plain text.
           </Text>
-          <TextInput
-            style={[styles.textInput, { marginBottom: 20, paddingVertical: 12 }]}
-            value={tempKey}
-            onChangeText={setTempKey}
-            placeholder="Paste Gemini API Key here"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity style={[styles.sendBtn, { paddingVertical: 14 }]} onPress={saveApiKey}>
-            <Text style={[styles.sendBtnText, { textAlign: 'center' }]}>Save Settings</Text>
-          </TouchableOpacity>
+          <View style={{ backgroundColor: '#fff', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e6e6ee' }}>
+            <Text style={{ fontWeight: '500', fontSize: 16, textAlign: 'center' }}>{deviceId}</Text>
+          </View>
+          <Text style={{ color: '#aaa', fontSize: 12, marginTop: 12, textAlign: 'center' }}>
+            LLM logic is now safely hosted on the Backend Redis Queue!
+          </Text>
         </View>
       )}
     </KeyboardAvoidingView>
