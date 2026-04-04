@@ -63,7 +63,9 @@ ${txContext}`;
 
     // Start chat session
     const chat = model.startChat({
-        systemInstruction,
+        systemInstruction: {
+          parts: [{ text: systemInstruction }]
+        },
         history: pastContents
     });
 
