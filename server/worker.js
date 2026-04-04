@@ -6,7 +6,7 @@ const Transaction = require('./models/Transaction');
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'MISSING_KEY');
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 function formatTransactions(transactions = []) {
   if (!Array.isArray(transactions) || !transactions.length) {

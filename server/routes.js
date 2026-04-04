@@ -1,42 +1,12 @@
 const express = require('express');
 const { chatQueue } = require('./queue');
-const { encrypt, decrypt } = require('./utils/crypto');
 const Transaction = require('./models/Transaction');
+
 
 const router = express.Router();
 
-// Middleware to decrypt incoming requests (E2EE)
-router.use((req, res, next) => {
-    // We only decrypt if the client specifically sends an encrypted payload format
-    if (req.body && req.body.encryptedData && req.body.iv && req.body.authTag) {
-        try {
-            const decryptedString = decrypt(req.body);
-            req.body = JSON.parse(decryptedString);
-        } catch (e) {
-            return res.status(400).json({ error: 'Decryption failed' });
-        }
-    }
-    next();
-});
-
-// Middleware to wrap responses in E2EE
-// We overriding the res.json to auto-encrypt before sending
-const e2eeResponse = (req, res, next) => {
-    const originalJson = res.json;
-    res.json = function (data) {
-        // Simple heuristic: if we are supposed to encrypt
-        if (req.headers['x-e2e-enabled'] === 'true') {
-            const encrypted = encrypt(JSON.stringify(data));
-            return originalJson.call(this, encrypted);
-        }
-        return originalJson.call(this, data);
-    };
-    next();
-};
-
-router.use(e2eeResponse);
-
 // --- API ROUTES ---
+
 
 // 1. Sync SMS Transactions
 router.post('/sync-sms', async (req, res) => {

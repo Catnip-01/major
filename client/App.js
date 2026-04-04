@@ -1,4 +1,3 @@
-import 'react-native-get-random-values';
 import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Markdown from 'react-native-markdown-display';
@@ -28,7 +27,7 @@ import {
 } from 'lucide-react-native';
 import SmsAndroid from 'react-native-get-sms-android';
 import { extractTransaction } from './extractor';
-import { encryptPayload } from './crypto';
+
 
 // --- CONFIGURATION ---
 // IMPORTANT: Update this with your EC2 Public IP!
@@ -72,15 +71,12 @@ export default function App() {
   const syncTransactionsToServer = async (extractedTxs) => {
     try {
       const payload = { deviceId, transactions: extractedTxs };
-      const encryptedData = encryptPayload(JSON.stringify(payload));
-      
       await fetch(`${API_BASE_URL}/sync-sms`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-e2e-enabled': 'true'
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(encryptedData)
+        body: JSON.stringify(payload)
       });
     } catch (e) {
       console.error('Sync Error', e);
@@ -154,12 +150,10 @@ export default function App() {
 
     try {
       const payload = { deviceId, message: userMsg.text };
-      const encryptedData = encryptPayload(JSON.stringify(payload));
-
       const res = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-e2e-enabled': 'true' },
-        body: JSON.stringify(encryptedData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
       
       const data = await res.json();
@@ -243,7 +237,7 @@ export default function App() {
                     <ShieldCheck size={40} color={COLORS.primary} opacity={0.5} />
                   </View>
                   <Text style={styles.emptyTitle}>Secure Workspace</Text>
-                  <Text style={styles.emptySub}>Ask Finize about your spending or budgets. All data is end-to-end encrypted.</Text>
+                  <Text style={styles.emptySub}>Ask Finize about your spending or budgets. Fast and secure.</Text>
                 </View>
               }
             />
@@ -310,7 +304,7 @@ export default function App() {
           <View style={styles.settingsPage}>
             <View style={styles.settingHero}>
                 <Smartphone size={48} color={COLORS.primary} />
-                <Text style={styles.heroTitle}>E2EE Verified</Text>
+                <Text style={styles.heroTitle}>Secure Connection</Text>
                 <Text style={styles.heroSub}>Your device ID is the only identifier we store.</Text>
             </View>
             

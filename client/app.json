@@ -13,16 +13,25 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.triju.palfinmajor",
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.palfin2",
-      "permissions": ["READ_SMS", "RECEIVE_SMS"]
+      "permissions": [
+        "READ_SMS",
+        "RECEIVE_SMS"
+      ],
+      "usesCleartextTraffic": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
