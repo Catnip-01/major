@@ -6,7 +6,6 @@ const Transaction = require('./models/Transaction');
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'MISSING_KEY');
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
 function formatTransactions(transactions = []) {
   if (!Array.isArray(transactions) || !transactions.length) {
@@ -55,17 +54,20 @@ const chatWorker = new Worker('chatQueue', async job => {
 User Context:
 ${txContext}`;
 
-    // Pass past conversation history
+    // 2. Initialize Model with Dynamic System Instruction
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash-latest",
+      systemInstruction: systemInstruction 
+    });
+
+    // 3. Pass past conversation history
     const pastContents = historyDoc.messages.slice(0, -1).map(m => ({
-       role: m.role,
+       role: m.role === 'user' ? 'user' : 'model',
        parts: [{ text: m.text }]
     }));
 
     // Start chat session
     const chat = model.startChat({
-        systemInstruction: {
-          parts: [{ text: systemInstruction }]
-        },
         history: pastContents
     });
 
