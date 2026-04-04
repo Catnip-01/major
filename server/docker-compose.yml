@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  palfin-server:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - MONGO_URI=mongodb://mongo:27017/palfin
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY} # Make sure to pass this dynamically or via .env
+      - GEMINI_API_KEY=${GEMINI_API_KEY} # Required for the backend to talk to Gemini
+    depends_on:
+      - mongo
+      - redis
+    restart: always
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: always
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    restart: always
+
+volumes:
+  mongo-data:
