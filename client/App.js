@@ -175,7 +175,7 @@ export default function App() {
       <LinearGradient colors={['#0047AB', '#0057D9']} style={styles.header}>
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.headerTitle}>Palfin</Text>
+            <Text style={styles.headerTitle}>Palfin 2.3</Text>
             <Text style={styles.headerSubtitle}>AI Financial Coach</Text>
           </View>
           <TouchableOpacity style={styles.syncBtn} onPress={readSMS} disabled={smsLoading}>

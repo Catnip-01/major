@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "palfin2",
+    "name": "palfin 2.3",
     "slug": "palfin-major",
-    "version": "1.0.0",
+    "version": "2.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
