@@ -7,20 +7,47 @@ import {
   KeyboardAvoidingView,
   PermissionsAndroid,
   Platform,
+  StatusBar,
   StyleSheet,
-  Text, TextInput, TouchableOpacity,
-  View
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { 
+  MessageCircle, 
+  CreditCard, 
+  Settings as SettingsIcon, 
+  Send, 
+  Smartphone, 
+  ChevronRight,
+  ShieldCheck,
+  RefreshCw
+} from 'lucide-react-native';
 import SmsAndroid from 'react-native-get-sms-android';
 import { extractTransaction } from './extractor';
-import { encryptPayload, decryptPayload } from './crypto';
+import { encryptPayload } from './crypto';
 
-// Use 10.0.2.2 for Android Emulator connecting to localhost
-const API_BASE_URL = 'http://10.0.2.2:3000/api';
+// --- CONFIGURATION ---
+// IMPORTANT: Update this with your EC2 Public IP!
+const API_BASE_URL = 'http://56.228.15.189/api'; 
+
+const COLORS = {
+  primary: '#0057D9',
+  secondary: '#00b386',
+  accent: '#6366f1',
+  background: '#F0F2F5',
+  card: '#FFFFFF',
+  text: '#1E293B',
+  subtext: '#64748B',
+  border: '#E2E8F0',
+  userBubble: '#0057D9',
+  botBubble: '#FFFFFF',
+};
 
 export default function App() {
   const [transactions, setTransactions] = useState([]);
-  const [allMessages, setAllMessages] = useState([]);
   const [chatHistory, setChatHistory] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,7 +57,6 @@ export default function App() {
   const flatListRef = useRef(null);
 
   useEffect(() => {
-    // Generate a pseudo-random device ID for anonymous syncing
     AsyncStorage.getItem('DEVICE_ID').then(id => {
       if (id) {
         setDeviceId(id);
@@ -40,18 +66,11 @@ export default function App() {
         setDeviceId(newId);
       }
     });
-
-    // Optionally: Fetch existing transactions and chat history from server on load
   }, []);
 
   const syncTransactionsToServer = async (extractedTxs) => {
     try {
-      const payload = {
-        deviceId,
-        transactions: extractedTxs,
-      };
-      
-      // E2EE Wrapper
+      const payload = { deviceId, transactions: extractedTxs };
       const encryptedData = encryptPayload(JSON.stringify(payload));
       
       await fetch(`${API_BASE_URL}/sync-sms`, {
@@ -62,9 +81,8 @@ export default function App() {
         },
         body: JSON.stringify(encryptedData)
       });
-      console.log('Successfully synced transactions to server E2EE');
     } catch (e) {
-      console.error('API Sync Error', e);
+      console.error('Sync Error', e);
     }
   };
 
@@ -73,34 +91,29 @@ export default function App() {
     try {
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.READ_SMS,
-        { title: 'SMS Permission', message: 'Palfin needs to read your SMS to extract transactions' }
+        { title: 'SMS Permission', message: 'Palfin needs to read your SMS to extract transactions securely.' }
       );
       if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-        alert('SMS permission denied');
+        alert('Permission Denied');
         setSmsLoading(false);
         return;
       }
 
       SmsAndroid.list(
         JSON.stringify({ box: 'inbox', maxCount: 200 }),
-        (fail) => { console.log('SMS read failed:', fail); setSmsLoading(false); },
+        (fail) => { console.log('Fail:', fail); setSmsLoading(false); },
         (count, smsList) => {
           const messages = JSON.parse(smsList);
-          setAllMessages(messages);
           const extracted = [];
           messages.forEach(msg => {
             const tx = extractTransaction(msg.body);
-            // Include message ID so server ignores duplicates
             if (tx && tx.amount) extracted.push({ ...tx, id: msg._id || Math.random().toString() });
           });
           
-          setTransactions(prev => [...prev, ...extracted]);
+          setTransactions(extracted);
           setSmsLoading(false);
-          
-          // Background sync to server with PII redacted via extractor
           syncTransactionsToServer(extracted);
-          
-          alert(`Found & Synced ${extracted.length} transactions securely!`);
+          alert(`${extracted.length} Transactions Synced!`);
         }
       );
     } catch (e) {
@@ -119,15 +132,13 @@ export default function App() {
                 setChatHistory(prev => [...prev, { from: 'finize', text: data.result.text }]);
                 setLoading(false);
             } else if (data.status === 'failed') {
-                setChatHistory(prev => [...prev, { from: 'finize', text: 'Sorry, the chat worker failed to process it.' }]);
+                setChatHistory(prev => [...prev, { from: 'finize', text: 'Finize is taking a break. Please try again soon!' }]);
                 setLoading(false);
             } else {
-                // Still processing, poll again in 1.5s
                 setTimeout(checkStatus, 1500);
             }
         } catch (e) {
             setLoading(false);
-            setChatHistory(prev => [...prev, { from: 'finize', text: 'Network Error checking status.' }]);
         }
     };
     checkStatus();
@@ -141,175 +152,244 @@ export default function App() {
     setLoading(true);
 
     try {
-      // Send Secure Payload (E2EE)
       const payload = { deviceId, message: userMsg.text };
       const encryptedData = encryptPayload(JSON.stringify(payload));
 
       const res = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-e2e-enabled': 'true' 
-        },
+        headers: { 'Content-Type': 'application/json', 'x-e2e-enabled': 'true' },
         body: JSON.stringify(encryptedData)
       });
       
       const data = await res.json();
-      
-      if (data.jobId) {
-        // Start polling BullMQ for the answer
-        pollJobStatus(data.jobId);
-      } else {
-        throw new Error('No Job ID returned');
-      }
-
+      if (data.jobId) pollJobStatus(data.jobId);
     } catch (e) {
-      setChatHistory(prev => [...prev, { from: 'finize', text: `Something went wrong: ${e.message}` }]);
+      setChatHistory(prev => [...prev, { from: 'finize', text: `Connection Error: ${e.message}` }]);
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerText}>Palfin</Text>
-        <TouchableOpacity style={styles.smsBtn} onPress={readSMS}>
-          {smsLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.smsBtnText}>Read SMS (E2EE)</Text>}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={['#0047AB', '#0057D9']} style={styles.header}>
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.headerTitle}>Palfin</Text>
+            <Text style={styles.headerSubtitle}>AI Financial Coach</Text>
+          </View>
+          <TouchableOpacity style={styles.syncBtn} onPress={readSMS} disabled={smsLoading}>
+            {smsLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <RefreshCw color="#fff" size={20} />
+            )}
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+
+      {/* Modern Tabs */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => setTab('chat')}>
+          <View style={[styles.tabIconBg, tab === 'chat' && styles.tabActiveBg]}>
+            <MessageCircle size={22} color={tab === 'chat' ? COLORS.primary : COLORS.subtext} />
+          </View>
+          <Text style={[styles.tabLabel, tab === 'chat' && styles.tabLabelActive]}>Chat</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.tabItem} onPress={() => setTab('transactions')}>
+          <View style={[styles.tabIconBg, tab === 'transactions' && styles.tabActiveBg]}>
+            <CreditCard size={22} color={tab === 'transactions' ? COLORS.primary : COLORS.subtext} />
+          </View>
+          <Text style={[styles.tabLabel, tab === 'transactions' && styles.tabLabelActive]}>Finance</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.tabItem} onPress={() => setTab('settings')}>
+          <View style={[styles.tabIconBg, tab === 'settings' && styles.tabActiveBg]}>
+            <SettingsIcon size={22} color={tab === 'settings' ? COLORS.primary : COLORS.subtext} />
+          </View>
+          <Text style={[styles.tabLabel, tab === 'settings' && styles.tabLabelActive]}>Safe</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <TouchableOpacity style={[styles.tab, tab === 'chat' && styles.activeTab]} onPress={() => setTab('chat')}>
-          <Text style={[styles.tabText, tab === 'chat' && styles.activeTabText]}>Chat</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, tab === 'transactions' && styles.activeTab]} onPress={() => setTab('transactions')}>
-          <Text style={[styles.tabText, tab === 'transactions' && styles.activeTabText]}>Transactions</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, tab === 'settings' && styles.activeTab]} onPress={() => setTab('settings')}>
-          <Text style={[styles.tabText, tab === 'settings' && styles.activeTabText]}>Settings</Text>
-        </TouchableOpacity>
-      </View>
+      <KeyboardAvoidingView 
+        style={styles.content} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+      >
+        {tab === 'chat' && (
+          <View style={{ flex: 1 }}>
+            <FlatList
+              ref={flatListRef}
+              data={chatHistory}
+              keyExtractor={(_, i) => i.toString()}
+              contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+              renderItem={({ item }) => (
+                <View style={[styles.bubbleWrap, item.from === 'user' ? styles.userWrap : styles.botWrap]}>
+                  <View style={[styles.bubble, item.from === 'user' ? styles.userBubble : styles.botBubble]}>
+                    {item.from === 'user' ? (
+                      <Text style={styles.userText}>{item.text}</Text>
+                    ) : (
+                      <Markdown style={markdownStyles}>{item.text}</Markdown>
+                    )}
+                  </View>
+                </View>
+              )}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <View style={styles.emptyIcon}>
+                    <ShieldCheck size={40} color={COLORS.primary} opacity={0.5} />
+                  </View>
+                  <Text style={styles.emptyTitle}>Secure Workspace</Text>
+                  <Text style={styles.emptySub}>Ask Finize about your spending or budgets. All data is end-to-end encrypted.</Text>
+                </View>
+              }
+            />
+            {loading && (
+              <View style={styles.typingContainer}>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+                <Text style={styles.typingText}>Finize is analyzing...</Text>
+              </View>
+            )}
+            <View style={styles.inputContainer}>
+              <View style={styles.inputBox}>
+                <TextInput
+                  style={styles.textInput}
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder="Type a message..."
+                  placeholderTextColor="#94A3B8"
+                  onSubmitEditing={sendMessage}
+                />
+                <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} disabled={!input.trim()}>
+                  <LinearGradient colors={['#0057D9', '#0047AB']} style={styles.sendIconBg}>
+                    <Send size={18} color="#fff" />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
 
-      {/* Chat Tab */}
-      {tab === 'chat' && (
-        <View style={{ flex: 1 }}>
+        {tab === 'transactions' && (
           <FlatList
-            ref={flatListRef}
-            data={chatHistory}
-            keyExtractor={(_, i) => i.toString()}
-            style={styles.chatList}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+            data={transactions}
+            keyExtractor={(item, i) => item.id || i.toString()}
+            contentContainerStyle={{ padding: 16 }}
+            ListHeaderComponent={() => (
+              <View style={styles.statsHeader}>
+                <Text style={styles.statsTitle}>Recent Activity</Text>
+              </View>
+            )}
             renderItem={({ item }) => (
-              <View style={[styles.bubble, item.from === 'user' ? styles.userBubble : styles.botBubble]}>
-                {item.from === 'user' ? (
-                  <Text style={[styles.bubbleText, { color: '#fff' }]}>{item.text}</Text>
-                ) : (
-                  <Markdown style={markdownStyles}>
-                    {item.text}
-                  </Markdown>
-                )}
+              <View style={styles.txCard}>
+                <View style={styles.txIconBg}>
+                  <CreditCard size={20} color={COLORS.primary} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.txMerchant} numberOfLines={1}>{item.merchant || 'Unknown'}</Text>
+                  <Text style={styles.txMeta}>{item.date || 'Today'} • {item.account || 'Wallet'}</Text>
+                </View>
+                <Text style={[styles.txAmount, { color: item.type === 'credit' ? COLORS.secondary : '#EF4444' }]}>
+                  {item.type === 'credit' ? '+' : '-'}₹{item.amount}
+                </Text>
+                <ChevronRight size={16} color="#CBD5E1" />
               </View>
             )}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>Ask Finize anything about your finances... (Secured with E2EE)</Text>
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptySub}>No transactions found locally. Tap Sync in the header.</Text>
+              </View>
             }
           />
-          {loading && <Text style={{ textAlign: 'center', marginBottom: 8, color: '#0057D9' }}>Finize is thinking in the Cloud Queue...</Text>}
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.textInput}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Ask Finize..."
-              onSubmitEditing={sendMessage}
-            />
-            <TouchableOpacity style={styles.sendBtn} onPress={sendMessage}>
-              <Text style={styles.sendBtnText}>Send</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+        )}
 
-      {/* Transactions Tab */}
-      {tab === 'transactions' && (
-        <FlatList
-          data={transactions}
-          keyExtractor={(item, i) => item.id || i.toString()}
-          style={{ flex: 1, padding: 12 }}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No local transactions yet. Tap "Read SMS" to extract and sync.</Text>
-          }
-          renderItem={({ item }) => (
-            <View style={styles.txCard}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={styles.txMerchant}>{item.merchant || 'Unknown'}</Text>
-                <Text style={[styles.txAmount, { color: item.type === 'credit' ? '#00b386' : '#e53935' }]}>
-                  {item.type === 'credit' ? '+' : '-'}₹{item.amount}
-                </Text>
-              </View>
-              <Text style={styles.txDate}>{item.date || 'No date'} • A/c: {item.account || 'N/A'}</Text>
+        {tab === 'settings' && (
+          <View style={styles.settingsPage}>
+            <View style={styles.settingHero}>
+                <Smartphone size={48} color={COLORS.primary} />
+                <Text style={styles.heroTitle}>E2EE Verified</Text>
+                <Text style={styles.heroSub}>Your device ID is the only identifier we store.</Text>
             </View>
-          )}
-        />
-      )}
+            
+            <View style={styles.idCard}>
+              <Text style={styles.idLabel}>ANONYMOUS DEVICE IDENTIFIER</Text>
+              <Text style={styles.idValue}>{deviceId}</Text>
+            </View>
 
-      {/* Settings Tab */}
-      {tab === 'settings' && (
-        <View style={{ flex: 1, padding: 20 }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>Device Link</Text>
-          <Text style={{ color: '#666', marginBottom: 20 }}>
-            Your Device ID is strictly for anonymous E2EE communication with the Palfin Servers. NO PII is transmitted in plain text.
-          </Text>
-          <View style={{ backgroundColor: '#fff', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e6e6ee' }}>
-            <Text style={{ fontWeight: '500', fontSize: 16, textAlign: 'center' }}>{deviceId}</Text>
+            <View style={styles.securityHint}>
+                <ShieldCheck size={20} color={COLORS.secondary} />
+                <Text style={styles.securityText}>All PII (Account numbers, Phone numbers) is redacted locally before syncing.</Text>
+            </View>
           </View>
-          <Text style={{ color: '#aaa', fontSize: 12, marginTop: 12, textAlign: 'center' }}>
-            LLM logic is now safely hosted on the Backend Redis Queue!
-          </Text>
-        </View>
-      )}
-    </KeyboardAvoidingView>
+        )}
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f6fa' },
-  header: { backgroundColor: '#0057D9', padding: 16, paddingTop: 48, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerText: { color: '#fff', fontSize: 22, fontWeight: '700' },
-  smsBtn: { backgroundColor: '#ffffff33', padding: 8, borderRadius: 8 },
-  smsBtnText: { color: '#fff', fontWeight: '600' },
-  tabs: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#e6e6ee' },
-  tab: { flex: 1, padding: 12, alignItems: 'center' },
-  activeTab: { borderBottomWidth: 2, borderBottomColor: '#0057D9' },
-  tabText: { color: '#888', fontWeight: '500' },
-  activeTabText: { color: '#0057D9' },
-  chatList: { flex: 1, padding: 12 },
-  bubble: { maxWidth: '80%', padding: 12, borderRadius: 16, marginBottom: 8 },
-  userBubble: { backgroundColor: '#0057D9', alignSelf: 'flex-end' },
-  botBubble: { backgroundColor: '#fff', alignSelf: 'flex-start', borderWidth: 1, borderColor: '#e6e6ee' },
-  bubbleText: { color: '#222', fontSize: 14 },
-  emptyText: { textAlign: 'center', color: '#aaa', marginTop: 40, fontSize: 14 },
-  inputRow: { flexDirection: 'row', padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#e6e6ee' },
-  textInput: { flex: 1, borderWidth: 1, borderColor: '#e6e6ee', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, marginRight: 8 },
-  sendBtn: { backgroundColor: '#0057D9', borderRadius: 20, paddingHorizontal: 20, justifyContent: 'center' },
-  sendBtnText: { color: '#fff', fontWeight: '600' },
-  txCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#e6e6ee' },
-  txMerchant: { fontWeight: '600', fontSize: 15, color: '#222' },
-  txAmount: { fontWeight: '700', fontSize: 15 },
-  txDate: { color: '#aaa', fontSize: 12, marginTop: 4 },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 24, borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
+  headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerTitle: { color: '#fff', fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  headerSubtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '500' },
+  syncBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 10, borderRadius: 12 },
+  
+  tabBar: { flexDirection: 'row', backgroundColor: '#fff', marginHorizontal: 20, marginTop: -25, borderRadius: 20, padding: 8, elevation: 8, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { height: 5, width: 0 } },
+  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tabIconBg: { padding: 10, borderRadius: 14, marginBottom: 4 },
+  tabActiveBg: { backgroundColor: 'rgba(0,87,217,0.1)' },
+  tabLabel: { fontSize: 11, fontWeight: '600', color: COLORS.subtext },
+  tabLabelActive: { color: COLORS.primary },
+
+  content: { flex: 1, marginTop: 10 },
+  chatList: { flex: 1 },
+  bubbleWrap: { marginVertical: 4, width: '100%', flexDirection: 'row' },
+  userWrap: { justifyContent: 'flex-end' },
+  botWrap: { justifyContent: 'flex-start' },
+  bubble: { maxWidth: '85%', padding: 14, borderRadius: 22 },
+  userBubble: { backgroundColor: COLORS.userBubble, borderBottomRightRadius: 4 },
+  botBubble: { backgroundColor: COLORS.botBubble, borderBottomLeftRadius: 4, elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
+  userText: { color: '#fff', fontSize: 15, fontWeight: '500', lineHeight: 22 },
+
+  inputContainer: { padding: 16, backgroundColor: 'transparent' },
+  inputBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 30, paddingHorizontal: 6, paddingVertical: 6, elevation: 4, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10 },
+  textInput: { flex: 1, paddingHorizontal: 16, fontSize: 16, color: COLORS.text, height: 44 },
+  sendIconBg: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 60, paddingHorizontal: 40 },
+  emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,87,217,0.05)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
+  emptySub: { fontSize: 14, color: COLORS.subtext, textAlign: 'center', lineHeight: 20 },
+
+  typingContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, marginBottom: 8 },
+  typingText: { fontSize: 12, color: COLORS.primary, fontWeight: '600', marginLeft: 8 },
+
+  txCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 16, borderRadius: 20, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 8 },
+  txIconBg: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(0,87,217,0.05)', alignItems: 'center', justifyContent: 'center' },
+  txMerchant: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  txMeta: { fontSize: 12, color: COLORS.subtext, marginTop: 2 },
+  txAmount: { fontSize: 16, fontWeight: '800', marginRight: 10 },
+  statsTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 16 },
+
+  settingsPage: { flex: 1, padding: 24, alignItems: 'center' },
+  settingHero: { alignItems: 'center', marginVertical: 32 },
+  heroTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text, marginTop: 16 },
+  heroSub: { fontSize: 14, color: COLORS.subtext, textAlign: 'center', marginTop: 8 },
+  idCard: { backgroundColor: '#fff', width: '100%', padding: 20, borderRadius: 24, borderStyle: 'dashed', borderWidth: 1, borderColor: COLORS.primary, alignItems: 'center' },
+  idLabel: { fontSize: 10, fontWeight: '800', color: COLORS.primary, letterSpacing: 1, marginBottom: 8 },
+  idValue: { fontSize: 18, fontWeight: '600', color: COLORS.text, letterSpacing: 0.5 },
+  securityHint: { flexDirection: 'row', alignItems: 'center', marginTop: 32, paddingHorizontal: 20 },
+  securityText: { fontSize: 12, color: COLORS.subtext, marginLeft: 12, lineHeight: 18, flex: 1 },
 });
 
 const markdownStyles = {
-  body: { color: '#222', fontSize: 14 },
-  paragraph: { marginTop: 0, marginBottom: 8 },
-  strong: { fontWeight: 'bold' },
-  em: { fontStyle: 'italic' },
-  heading1: { fontSize: 20, fontWeight: 'bold', marginVertical: 8 },
-  heading2: { fontSize: 18, fontWeight: 'bold', marginVertical: 8 },
-  heading3: { fontSize: 16, fontWeight: 'bold', marginVertical: 8 },
-  bullet_list: { marginBottom: 8 },
-  ordered_list: { marginBottom: 8 },
-  list_item: { marginBottom: 4 }
+  body: { color: COLORS.text, fontSize: 15, lineHeight: 22 },
+  paragraph: { marginVertical: 4 },
+  strong: { fontWeight: '800', color: COLORS.primary },
+  list_item: { marginVertical: 2 },
+  heading1: { fontSize: 22, fontWeight: '800', marginVertical: 10 },
+  heading2: { fontSize: 18, fontWeight: '700', marginVertical: 8 },
 };

@@ -23,7 +23,7 @@ router.use((req, res, next) => {
 // We overriding the res.json to auto-encrypt before sending
 const e2eeResponse = (req, res, next) => {
     const originalJson = res.json;
-    res.json = function(data) {
+    res.json = function (data) {
         // Simple heuristic: if we are supposed to encrypt
         if (req.headers['x-e2e-enabled'] === 'true') {
             const encrypted = encrypt(JSON.stringify(data));
