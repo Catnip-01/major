@@ -31,7 +31,7 @@ import { extractTransaction } from './extractor';
 import { encryptPayload } from './crypto';
 
 // --- CONFIGURATION ---
-const API_BASE_URL = 'http://13.239.4.192/api';
+const API_BASE_URL = 'http://13.239.4.192:3000/api';
 
 const COLORS = {
   primary: '#0057D9',
@@ -54,6 +54,7 @@ export default function App() {
   const [smsLoading, setSmsLoading] = useState(false);
   const [tab, setTab] = useState('chat');
   const [deviceId, setDeviceId] = useState('');
+  const [isQueryMode, setIsQueryMode] = useState(false);
   const flatListRef = useRef(null);
 
   useEffect(() => {
@@ -144,6 +145,28 @@ export default function App() {
     checkStatus();
   };
 
+  const pollQueryStatus = async (jobId) => {
+    const checkStatus = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/query/status/${jobId}`);
+        const data = await response.json();
+
+        if (data.status === 'completed') {
+          setChatHistory(prev => [...prev, { from: 'finize', text: data.result.answer, sql: data.result.sql }]);
+          setLoading(false);
+        } else if (data.status === 'failed') {
+          setChatHistory(prev => [...prev, { from: 'finize', text: 'I had trouble calculating that. Please try rephrasing.' }]);
+          setLoading(false);
+        } else {
+          setTimeout(checkStatus, 1500);
+        }
+      } catch (e) {
+        setLoading(false);
+      }
+    };
+    checkStatus();
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || !deviceId) return;
     const userMsg = { from: 'user', text: input };
@@ -152,17 +175,21 @@ export default function App() {
     setLoading(true);
 
     try {
-      const payload = { deviceId, message: userMsg.text };
+      const payload = { deviceId, [isQueryMode ? 'question' : 'message']: userMsg.text };
       const encryptedData = encryptPayload(JSON.stringify(payload));
+      const endpoint = isQueryMode ? '/query' : '/chat';
 
-      const res = await fetch(`${API_BASE_URL}/chat`, {
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-e2e-enabled': 'true' },
         body: JSON.stringify(encryptedData)
       });
 
       const data = await res.json();
-      if (data.jobId) pollJobStatus(data.jobId);
+      if (data.jobId) {
+        if (isQueryMode) pollQueryStatus(data.jobId);
+        else pollJobStatus(data.jobId);
+      }
     } catch (e) {
       setChatHistory(prev => [...prev, { from: 'finize', text: `Connection Error: ${e.message}` }]);
       setLoading(false);
@@ -231,7 +258,12 @@ export default function App() {
                     {item.from === 'user' ? (
                       <Text style={styles.userText}>{item.text}</Text>
                     ) : (
-                      <Markdown style={markdownStyles}>{item.text}</Markdown>
+                      <>
+                        <Markdown style={markdownStyles}>{item.text}</Markdown>
+                        {item.sql && (
+                          <Text style={styles.sqlText}>SQL: {item.sql}</Text>
+                        )}
+                      </>
                     )}
                   </View>
                 </View>
@@ -253,6 +285,20 @@ export default function App() {
               </View>
             )}
             <View style={styles.inputContainer}>
+              <View style={styles.modeSelector}>
+                <TouchableOpacity
+                  style={[styles.modeBtn, !isQueryMode && styles.modeBtnActive]}
+                  onPress={() => setIsQueryMode(false)}
+                >
+                  <Text style={[styles.modeText, !isQueryMode && styles.modeTextActive]}>Coach</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modeBtn, isQueryMode && styles.modeBtnActive]}
+                  onPress={() => setIsQueryMode(true)}
+                >
+                  <Text style={[styles.modeText, isQueryMode && styles.modeTextActive]}>Analytics</Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.inputBox}>
                 <TextInput
                   style={styles.textInput}
@@ -289,7 +335,9 @@ export default function App() {
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.txMerchant} numberOfLines={1}>{item.merchant || 'Unknown'}</Text>
-                  <Text style={styles.txMeta}>{item.date || 'Today'} • {item.account || 'Wallet'}</Text>
+                  <Text style={styles.txMeta}>
+                    {item.date || 'Today'} • {item.category || 'Unclassified'}
+                  </Text>
                 </View>
                 <Text style={[styles.txAmount, { color: item.type === 'credit' ? COLORS.secondary : '#EF4444' }]}>
                   {item.type === 'credit' ? '+' : '-'}₹{item.amount}
@@ -383,6 +431,13 @@ const styles = StyleSheet.create({
   idValue: { fontSize: 18, fontWeight: '600', color: COLORS.text, letterSpacing: 0.5 },
   securityHint: { flexDirection: 'row', alignItems: 'center', marginTop: 32, paddingHorizontal: 20 },
   securityText: { fontSize: 12, color: COLORS.subtext, marginLeft: 12, lineHeight: 18, flex: 1 },
+
+  modeSelector: { flexDirection: 'row', backgroundColor: '#E2E8F0', borderRadius: 20, marginBottom: 12, padding: 2, width: 160, alignSelf: 'center' },
+  modeBtn: { flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: 18 },
+  modeBtnActive: { backgroundColor: '#fff', elevation: 2 },
+  modeText: { fontSize: 12, fontWeight: '700', color: COLORS.subtext },
+  modeTextActive: { color: COLORS.primary },
+  sqlText: { fontSize: 10, color: COLORS.subtext, fontStyle: 'italic', marginTop: 8, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 4 },
 });
 
 const markdownStyles = {
