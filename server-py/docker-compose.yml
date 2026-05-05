@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: palfin-api
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - MONGO_URI=mongodb://mongo:27017/palfin
+      - REDIS_URL=redis://redis:6379/0
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - SQLITE_PATH=/app/data/transactions.db
+      - HF_SPACE=tanu0410/expense-classifier2
+    depends_on:
+      - mongo
+      - redis
+    volumes:
+      - sqlite-data:/app/data
+    restart: always
+
+  worker:
+    build: .
+    container_name: palfin-worker
+    command: celery -A celery_app worker --loglevel=info --concurrency=4
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/palfin
+      - REDIS_URL=redis://redis:6379/0
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - SQLITE_PATH=/app/data/transactions.db
+      - HF_SPACE=tanu0410/expense-classifier2
+    depends_on:
+      - mongo
+      - redis
+    volumes:
+      - sqlite-data:/app/data
+    restart: always
+
+  mongo:
+    image: mongo:latest
+    container_name: palfin-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: always
+
+  redis:
+    image: redis:alpine
+    container_name: palfin-redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+volumes:
+  mongo-data:
+  sqlite-data:

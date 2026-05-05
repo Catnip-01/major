@@ -16,12 +16,12 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { 
-  MessageCircle, 
-  CreditCard, 
-  Settings as SettingsIcon, 
-  Send, 
-  Smartphone, 
+import {
+  MessageCircle,
+  CreditCard,
+  Settings as SettingsIcon,
+  Send,
+  Smartphone,
   ChevronRight,
   ShieldCheck,
   RefreshCw
@@ -31,8 +31,7 @@ import { extractTransaction } from './extractor';
 import { encryptPayload } from './crypto';
 
 // --- CONFIGURATION ---
-// IMPORTANT: Update this with your EC2 Public IP!
-const API_BASE_URL = 'http://56.228.15.189/api'; 
+const API_BASE_URL = 'http://13.239.4.192/api';
 
 const COLORS = {
   primary: '#0057D9',
@@ -73,7 +72,7 @@ export default function App() {
     try {
       const payload = { deviceId, transactions: extractedTxs };
       const encryptedData = encryptPayload(JSON.stringify(payload));
-      
+
       await fetch(`${API_BASE_URL}/sync-sms`, {
         method: 'POST',
         headers: {
@@ -110,7 +109,7 @@ export default function App() {
             const tx = extractTransaction(msg.body);
             if (tx && tx.amount) extracted.push({ ...tx, id: msg._id || Math.random().toString() });
           });
-          
+
           setTransactions(extracted);
           setSmsLoading(false);
           syncTransactionsToServer(extracted);
@@ -125,22 +124,22 @@ export default function App() {
 
   const pollJobStatus = async (jobId) => {
     const checkStatus = async () => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/chat/status/${jobId}`);
-            const data = await response.json();
-            
-            if (data.status === 'completed') {
-                setChatHistory(prev => [...prev, { from: 'finize', text: data.result.text }]);
-                setLoading(false);
-            } else if (data.status === 'failed') {
-                setChatHistory(prev => [...prev, { from: 'finize', text: 'Finize is taking a break. Please try again soon!' }]);
-                setLoading(false);
-            } else {
-                setTimeout(checkStatus, 1500);
-            }
-        } catch (e) {
-            setLoading(false);
+      try {
+        const response = await fetch(`${API_BASE_URL}/chat/status/${jobId}`);
+        const data = await response.json();
+
+        if (data.status === 'completed') {
+          setChatHistory(prev => [...prev, { from: 'finize', text: data.result.text }]);
+          setLoading(false);
+        } else if (data.status === 'failed') {
+          setChatHistory(prev => [...prev, { from: 'finize', text: 'Finize is taking a break. Please try again soon!' }]);
+          setLoading(false);
+        } else {
+          setTimeout(checkStatus, 1500);
         }
+      } catch (e) {
+        setLoading(false);
+      }
     };
     checkStatus();
   };
@@ -161,7 +160,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json', 'x-e2e-enabled': 'true' },
         body: JSON.stringify(encryptedData)
       });
-      
+
       const data = await res.json();
       if (data.jobId) pollJobStatus(data.jobId);
     } catch (e) {
@@ -213,8 +212,8 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView 
-        style={styles.content} 
+      <KeyboardAvoidingView
+        style={styles.content}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
       >
@@ -309,19 +308,19 @@ export default function App() {
         {tab === 'settings' && (
           <View style={styles.settingsPage}>
             <View style={styles.settingHero}>
-                <Smartphone size={48} color={COLORS.primary} />
-                <Text style={styles.heroTitle}>E2EE Verified</Text>
-                <Text style={styles.heroSub}>Your device ID is the only identifier we store.</Text>
+              <Smartphone size={48} color={COLORS.primary} />
+              <Text style={styles.heroTitle}>E2EE Verified</Text>
+              <Text style={styles.heroSub}>Your device ID is the only identifier we store.</Text>
             </View>
-            
+
             <View style={styles.idCard}>
               <Text style={styles.idLabel}>ANONYMOUS DEVICE IDENTIFIER</Text>
               <Text style={styles.idValue}>{deviceId}</Text>
             </View>
 
             <View style={styles.securityHint}>
-                <ShieldCheck size={20} color={COLORS.secondary} />
-                <Text style={styles.securityText}>All PII (Account numbers, Phone numbers) is redacted locally before syncing.</Text>
+              <ShieldCheck size={20} color={COLORS.secondary} />
+              <Text style={styles.securityText}>All PII (Account numbers, Phone numbers) is redacted locally before syncing.</Text>
             </View>
           </View>
         )}
@@ -337,7 +336,7 @@ const styles = StyleSheet.create({
   headerTitle: { color: '#fff', fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
   headerSubtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '500' },
   syncBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 10, borderRadius: 12 },
-  
+
   tabBar: { flexDirection: 'row', backgroundColor: '#fff', marginHorizontal: 20, marginTop: -25, borderRadius: 20, padding: 8, elevation: 8, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { height: 5, width: 0 } },
   tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabIconBg: { padding: 10, borderRadius: 14, marginBottom: 4 },

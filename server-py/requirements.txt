@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+celery[redis]
+pymongo
+google-generativeai
+python-dotenv
+cryptography
+pydantic
+gradio_client
+httpx
