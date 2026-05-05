@@ -26,7 +26,6 @@ from dotenv import load_dotenv
 
 from celery_app import celery_app
 from database import init_db, get_recent_transactions, query_db
-from crypto import decrypt_payload, is_encrypted
 
 load_dotenv()
 
@@ -60,41 +59,6 @@ app.add_middleware(
 )
 
 
-# ---------------------------------------------------------------------------
-# Middleware — E2EE decryption (matches Node.js middleware)
-# ---------------------------------------------------------------------------
-
-@app.middleware("http")
-async def e2ee_middleware(request: Request, call_next):
-    """Transparently decrypt E2EE payloads if present."""
-    if request.method in ("POST", "PUT", "PATCH"):
-        try:
-            # Check if content type is JSON
-            content_type = request.headers.get("Content-Type", "")
-            if "application/json" not in content_type:
-                return await call_next(request)
-
-            body_bytes = await request.body()
-            if not body_bytes:
-                return await call_next(request)
-
-            import json
-            body = json.loads(body_bytes)
-
-            if is_encrypted(body):
-                decrypted = decrypt_payload(body)
-                new_body_bytes = json.dumps(decrypted).encode()
-
-                # --- The Fix: Re-inject the body for FastAPI routes ---
-                async def receive():
-                    return {"type": "http.request", "body": new_body_bytes}
-
-                request._receive = receive
-        except Exception as e:
-            logger.error(f"Middleware error: {e}")
-            pass
-            
-    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------

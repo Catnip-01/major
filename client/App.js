@@ -28,7 +28,6 @@ import {
 } from 'lucide-react-native';
 import SmsAndroid from 'react-native-get-sms-android';
 import { extractTransaction } from './extractor';
-import { encryptPayload } from './crypto';
 
 // --- CONFIGURATION ---
 const API_BASE_URL = 'http://13.239.4.192:3000/api';
@@ -72,15 +71,13 @@ export default function App() {
   const syncTransactionsToServer = async (extractedTxs) => {
     try {
       const payload = { deviceId, transactions: extractedTxs };
-      const encryptedData = encryptPayload(JSON.stringify(payload));
 
       await fetch(`${API_BASE_URL}/sync-sms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-e2e-enabled': 'true'
         },
-        body: JSON.stringify(encryptedData)
+        body: JSON.stringify(payload)
       });
     } catch (e) {
       console.error('Sync Error', e);
@@ -176,13 +173,12 @@ export default function App() {
 
     try {
       const payload = { deviceId, [isQueryMode ? 'question' : 'message']: userMsg.text };
-      const encryptedData = encryptPayload(JSON.stringify(payload));
       const endpoint = isQueryMode ? '/query' : '/chat';
 
       const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-e2e-enabled': 'true' },
-        body: JSON.stringify(encryptedData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
