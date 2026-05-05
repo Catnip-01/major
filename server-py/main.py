@@ -69,16 +69,31 @@ async def e2ee_middleware(request: Request, call_next):
     """Transparently decrypt E2EE payloads if present."""
     if request.method in ("POST", "PUT", "PATCH"):
         try:
-            body = await request.json()
+            # Check if content type is JSON
+            content_type = request.headers.get("Content-Type", "")
+            if "application/json" not in content_type:
+                return await call_next(request)
+
+            body_bytes = await request.body()
+            if not body_bytes:
+                return await call_next(request)
+
+            import json
+            body = json.loads(body_bytes)
+
             if is_encrypted(body):
                 decrypted = decrypt_payload(body)
-                # Reconstruct request with decrypted body
-                import json
-                from starlette.datastructures import Headers
-                new_body = json.dumps(decrypted).encode()
-                request._body = new_body
-        except Exception:
-            pass  # Not encrypted or not JSON — pass through
+                new_body_bytes = json.dumps(decrypted).encode()
+
+                # --- The Fix: Re-inject the body for FastAPI routes ---
+                async def receive():
+                    return {"type": "http.request", "body": new_body_bytes}
+
+                request._receive = receive
+        except Exception as e:
+            logger.error(f"Middleware error: {e}")
+            pass
+            
     return await call_next(request)
 
 
