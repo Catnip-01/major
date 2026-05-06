@@ -129,7 +129,7 @@ export const ChatDetailScreen = ({ navigation }) => {
             placeholderTextColor={theme.subtext}
             value={input}
             onChangeText={setInput}
-            multiline
+            multiline={true}
           />
           <TouchableOpacity 
             style={[styles.sendBtn, { backgroundColor: theme.primary }]}

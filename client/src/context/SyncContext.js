@@ -13,7 +13,7 @@ export const SyncProvider = ({ children }) => {
     // Basic regex for Indian banking SMS (covers most common banks)
     const spentMatch = body.match(/(?:spent|debited|paid|transaction|txn)\s+(?:of\s+)?(?:rs\.?|inr|₹)\s*([\d,.]+)/i);
     const merchantMatch = body.match(/(?:at|to|on)\s+([A-Za-z0-9\s.*]+?)(?:\s+using|\s+on|\s+at|\s+via|\.|$)/i);
-    
+
     if (spentMatch) {
       return {
         amount: parseFloat(spentMatch[1].replace(/,/g, '')),
@@ -44,8 +44,12 @@ export const SyncProvider = ({ children }) => {
         setIsSyncing(false);
         return;
       }
-
       const deviceId = await apiClient.getDeviceId();
+      if (!SmsAndroid || !SmsAndroid.list) {
+        console.warn("SMS library not found. Skipping sync (Expected in Expo Go).");
+        setIsSyncing(false);
+        return;
+      }
 
       SmsAndroid.list(
         JSON.stringify({ box: 'inbox', maxCount: 50 }),
@@ -72,7 +76,7 @@ export const SyncProvider = ({ children }) => {
           if (transactions.length > 0) {
             await apiClient.syncTransactions(deviceId, transactions);
           }
-          
+
           setLastSync(new Date());
           setIsSyncing(false);
         }
