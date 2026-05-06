@@ -78,7 +78,7 @@ export const AnalyticsScreen = () => {
             accessor={"population"}
             backgroundColor={"transparent"}
             paddingLeft={"15"}
-            absolute
+            absolute={true}
           />
         ) : (
           <Text style={[styles.emptyText, { color: theme.subtext }]}>Not enough data for charts yet.</Text>

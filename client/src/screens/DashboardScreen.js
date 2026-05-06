@@ -4,61 +4,48 @@ import {
   Text, 
   StyleSheet, 
   ScrollView, 
-  TouchableOpacity, 
-  RefreshControl 
+  TouchableOpacity,
+  RefreshControl
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme } from '../context/ThemeContext';
-import { apiClient } from '../api';
-import { PulseBar } from '../components/PulseBar';
 import { 
   TrendingUp, 
   ArrowUpRight, 
   MessageSquare, 
   RefreshCw 
 } from 'lucide-react-native';
-
-import { useSync } from '../context/SyncContext';
+import { useTheme } from '../context/ThemeContext';
+import { apiClient } from '../api';
 
 export const DashboardScreen = ({ navigation }) => {
   const { theme } = useTheme();
-  const { syncSms, isSyncing } = useSync();
-  const [deviceId, setDeviceId] = useState('');
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    init();
+    load();
   }, []);
 
-  const init = async () => {
+  const load = async () => {
+    setLoading(true);
     const id = await apiClient.getDeviceId();
-    setDeviceId(id);
     const data = await apiClient.fetchLatestReport(id);
     setReport(data);
     setLoading(false);
   };
 
-  const onRefresh = async () => {
-    setLoading(true);
-    await syncSms(); // Run SMS scan
-    await init();    // Refresh report from server
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <PulseBar deviceId={deviceId} />
-      
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={theme.primary} />}
+        refreshControl={<RefreshControl refreshing={!!loading} onRefresh={load} />}
       >
         <View style={styles.header}>
           <View>
             <Text style={[styles.greeting, { color: theme.subtext }]}>Welcome back,</Text>
             <Text style={[styles.title, { color: theme.text }]}>Palfin Dashboard</Text>
           </View>
-          <TouchableOpacity onPress={onRefresh} style={[styles.syncBtn, { backgroundColor: theme.card }]}>
+          <TouchableOpacity onPress={load} style={[styles.syncBtn, { backgroundColor: theme.card }]}>
             <RefreshCw size={20} color={theme.primary} />
           </TouchableOpacity>
         </View>
@@ -90,7 +77,7 @@ export const DashboardScreen = ({ navigation }) => {
           <View style={{ flex: 1 }}>
             <Text style={[styles.insightTitle, { color: theme.text }]}>Today's Insight</Text>
             <Text style={[styles.insightText, { color: theme.subtext }]} numberOfLines={2}>
-              {report?.data?.summary || "No insights ready yet. I'll analyze your spending overnight!"}
+              {report?.insight || 'Sync your SMS to get personalized spending insights!'}
             </Text>
           </View>
         </View>
@@ -108,13 +95,12 @@ export const DashboardScreen = ({ navigation }) => {
           
           <TouchableOpacity 
             style={[styles.actionBtn, { backgroundColor: theme.secondary }]}
-            onPress={() => navigation.navigate('Insights')}
+            onPress={() => navigation.navigate('Analytics')}
           >
             <TrendingUp size={24} color="#fff" />
             <Text style={styles.actionLabel}>View Analytics</Text>
           </TouchableOpacity>
         </View>
-
       </ScrollView>
     </View>
   );
@@ -126,15 +112,15 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   greeting: { fontSize: 14, fontWeight: '500' },
   title: { fontSize: 24, fontWeight: '800' },
-  syncBtn: { padding: 10, borderRadius: 12, elevation: 2 },
+  syncBtn: { padding: 10, borderRadius: 12 },
   
   mainCard: { padding: 24, borderRadius: 32, marginBottom: 24, elevation: 8 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   cardLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
   trendBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   trendText: { color: '#fff', fontSize: 10, fontWeight: '700', marginLeft: 4 },
-  amount: { color: '#fff', fontSize: 36, fontWeight: '800', marginBottom: 16 },
-  cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  amount: { color: '#fff', fontSize: 36, fontWeight: '800', marginVertical: 12 },
+  cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   cardSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
   detailBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   detailText: { color: '#fff', fontSize: 12, fontWeight: '700', marginRight: 4 },

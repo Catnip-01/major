@@ -93,7 +93,7 @@ export const TransactionsScreen = () => {
             <Text style={{ color: theme.subtext }}>No transactions found.</Text>
           </View>
         }
-        refreshing={loading}
+        refreshing={!!loading}
         onRefresh={load}
       />
     </View>

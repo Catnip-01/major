@@ -1,4 +1,3 @@
-import 'react-native-get-random-values';
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { ThemeProvider } from './src/context/ThemeContext';
@@ -11,7 +10,7 @@ export default function App() {
     <ThemeProvider>
       <SyncProvider>
         <NavigationContainer>
-          <StatusBar barStyle="auto" />
+          <StatusBar barStyle="dark-content" />
           <AppNavigator />
         </NavigationContainer>
       </SyncProvider>

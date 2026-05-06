@@ -51,36 +51,41 @@ export const SyncProvider = ({ children }) => {
         return;
       }
 
-      SmsAndroid.list(
-        JSON.stringify({ box: 'inbox', maxCount: 50 }),
-        (fail) => {
-          console.error('Failed to list SMS:', fail);
-          setIsSyncing(false);
-        },
-        async (count, smsList) => {
-          const messages = JSON.parse(smsList);
-          const transactions = [];
+      try {
+        SmsAndroid.list(
+          JSON.stringify({ box: 'inbox', maxCount: 50 }),
+          (fail) => {
+            console.error('Failed to list SMS:', fail);
+            setIsSyncing(false);
+          },
+          async (count, smsList) => {
+            const messages = JSON.parse(smsList);
+            const transactions = [];
 
-          messages.forEach((msg) => {
-            const tx = extractTransaction(msg.body);
-            if (tx) {
-              transactions.push({
-                ...tx,
-                smsId: msg._id.toString(),
-                date: new Date(msg.date).toISOString(),
-                bank: msg.address,
-              });
+            messages.forEach((msg) => {
+              const tx = extractTransaction(msg.body);
+              if (tx) {
+                transactions.push({
+                  ...tx,
+                  smsId: msg._id.toString(),
+                  date: new Date(msg.date).toISOString(),
+                  bank: msg.address,
+                });
+              }
+            });
+
+            if (transactions.length > 0) {
+              await apiClient.syncTransactions(deviceId, transactions);
             }
-          });
 
-          if (transactions.length > 0) {
-            await apiClient.syncTransactions(deviceId, transactions);
+            setLastSync(new Date());
+            setIsSyncing(false);
           }
-
-          setLastSync(new Date());
-          setIsSyncing(false);
-        }
-      );
+        );
+      } catch (nativeErr) {
+        console.error('Native SMS Error:', nativeErr);
+        setIsSyncing(false);
+      }
     } catch (err) {
       console.error('Sync Error:', err);
       setIsSyncing(false);

@@ -3,12 +3,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { LayoutGrid, Landmark, BarChart3, Shield } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
-import { 
-  DashboardScreen, 
-  TransactionsScreen, 
-  AnalyticsScreen, 
+import {
+  DashboardScreen,
+  TransactionsScreen,
+  AnalyticsScreen,
   VaultScreen,
-  ChatDetailScreen 
+  ChatDetailScreen
 } from '../screens';
 
 const Tab = createBottomTabNavigator();
@@ -16,10 +16,11 @@ const Stack = createNativeStackNavigator();
 
 const TabNavigator = () => {
   const { theme } = useTheme();
-  
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        headerShown: false,
         tabBarIcon: ({ color, size }) => {
           if (route.name === 'Home') return <LayoutGrid size={size} color={color} />;
           if (route.name === 'Ledger') return <Landmark size={size} color={color} />;
@@ -36,7 +37,6 @@ const TabNavigator = () => {
         },
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.tabInactive,
-        headerShown: false,
       })}
     >
       <Tab.Screen name="Home" component={DashboardScreen} />
