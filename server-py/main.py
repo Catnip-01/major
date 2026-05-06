@@ -198,14 +198,13 @@ async def event_stream(deviceId: str):
         await pubsub.subscribe(channel)
         try:
             yield f"data: {json.dumps({'event': 'connected', 'message': 'Connected to Palfin Pulse'})}\n\n"
-            while True:
-                message = await pubsub.get_message(ignore_subscribe_messages=True)
-                if message:
+            async for message in pubsub.listen():
+                if message['type'] == 'message':
                     data = message['data'].decode('utf-8')
                     yield f"data: {data}\n\n"
-                await asyncio.sleep(0.5)
         finally:
             await pubsub.unsubscribe(channel)
+            await pubsub.close()
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

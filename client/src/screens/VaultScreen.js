@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { 
   View, 
   Text, 
@@ -22,15 +23,17 @@ export const VaultScreen = ({ navigation }) => {
   const [deviceId, setDeviceId] = useState('');
   const [history, setHistory] = useState([]);
 
-  useEffect(() => {
-    load();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [])
+  );
 
   const load = async () => {
     const id = await apiClient.getDeviceId();
     setDeviceId(id);
     const chats = await apiClient.fetchHistory(id);
-    setHistory(chats);
+    if (chats) setHistory(chats);
   };
 
   return (

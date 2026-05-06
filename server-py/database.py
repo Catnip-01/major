@@ -17,8 +17,10 @@ Path(SQLITE_PATH).parent.mkdir(parents=True, exist_ok=True)
 
 
 def get_conn() -> sqlite3.Connection:
-    """Return a thread-local SQLite connection with row_factory set."""
+    """Return a thread-local SQLite connection with WAL mode and timeout."""
     conn = sqlite3.connect(SQLITE_PATH, check_same_thread=False)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=5000;")
     conn.row_factory = sqlite3.Row
     return conn
 
