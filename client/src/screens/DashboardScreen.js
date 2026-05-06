@@ -18,8 +18,11 @@ import {
   RefreshCw 
 } from 'lucide-react-native';
 
+import { useSync } from '../context/SyncContext';
+
 export const DashboardScreen = ({ navigation }) => {
   const { theme } = useTheme();
+  const { syncSms, isSyncing } = useSync();
   const [deviceId, setDeviceId] = useState('');
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -38,7 +41,8 @@ export const DashboardScreen = ({ navigation }) => {
 
   const onRefresh = async () => {
     setLoading(true);
-    await init();
+    await syncSms(); // Run SMS scan
+    await init();    // Refresh report from server
   };
 
   return (

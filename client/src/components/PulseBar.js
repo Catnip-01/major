@@ -11,16 +11,16 @@ export const PulseBar = ({ deviceId }) => {
 
   useEffect(() => {
     if (!deviceId) return;
-    
+
     const url = `http://13.239.4.192:3000/api/events/${deviceId}`;
     const es = new EventSource(url);
-    
+
     es.addEventListener('message', (e) => {
       if (e.data) {
         try {
           const data = JSON.parse(e.data);
           setEvent(data);
-          
+
           Animated.sequence([
             Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
             Animated.delay(4000),
@@ -43,7 +43,7 @@ export const PulseBar = ({ deviceId }) => {
 
   return (
     <Animated.View style={[
-      styles.container, 
+      styles.container,
       { backgroundColor: theme.primary, opacity: fadeAnim }
     ]}>
       <Activity size={14} color="#fff" style={{ marginRight: 8 }} />

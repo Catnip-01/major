@@ -57,11 +57,20 @@ export const apiClient = {
   sendMessage: async (deviceId, message, isQuery = false) => {
     const endpoint = isQuery ? '/query' : '/chat';
     const payload = { deviceId, [isQuery ? 'question' : 'message']: message };
-    
+
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
+    });
+    return await res.json();
+  },
+
+  syncTransactions: async (deviceId, transactions) => {
+    const res = await fetch(`${API_BASE_URL}/sync-sms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId, transactions })
     });
     return await res.json();
   }

@@ -5,6 +5,7 @@
     "version": "2.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "scheme": "palfin",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
