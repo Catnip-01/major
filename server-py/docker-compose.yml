@@ -67,15 +67,17 @@ services:
       - redis
     restart: always
 
-  mongo-express:
-    image: mongo-express
-    container_name: palfin-mongo-express
-    ports:
-      - "8081:8081"
+  beat:
+    build: .
+    container_name: palfin-beat
+    command: celery -A celery_app beat --loglevel=info
     environment:
-      - ME_CONFIG_MONGODB_SERVER=mongo
+      - REDIS_URL=redis://redis:6379/0
+      - SQLITE_PATH=/app/data/transactions.db
     depends_on:
-      - mongo
+      - redis
+    volumes:
+      - sqlite-data:/app/data
     restart: always
 
   sqlite-web:

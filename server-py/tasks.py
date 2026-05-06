@@ -11,13 +11,17 @@ import logging
 import uuid
 import re
 
-import pymongo
+import json
+import redis
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-from celery_app import celery_app
+from celery_app import celery_app, REDIS_URL
 from classifier import predict_batch
-from database import upsert_transactions, get_recent_transactions, query_db, get_schema
+from database import (
+    upsert_transactions, get_recent_transactions, query_db, get_schema,
+    save_chat_message, save_report
+)
 
 load_dotenv()
 
@@ -27,24 +31,35 @@ logger = logging.getLogger(__name__)
 # Shared clients (initialised once per worker process)
 # ---------------------------------------------------------------------------
 
-_mongo_client: pymongo.MongoClient | None = None
+_redis_client = None
 _gemini_model = None
 
 
-def _get_mongo():
-    global _mongo_client
-    if _mongo_client is None:
-        _mongo_client = pymongo.MongoClient(
-            os.getenv("MONGO_URI", "mongodb://localhost:27017/palfin")
-        )
-    return _mongo_client["palfin"]
+def _get_redis():
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis.from_url(REDIS_URL)
+    return _redis_client
+
+
+def emit_event(device_id: str, event_type: str, message: str):
+    """Push a real-time update to the client via Redis Pub/Sub."""
+    try:
+        r = _get_redis()
+        r.publish(f"events:{device_id}", json.dumps({
+            "event": event_type,
+            "message": message,
+            "timestamp": str(uuid.uuid4())
+        }))
+    except Exception as e:
+        logger.error(f"Failed to emit event: {e}")
 
 
 def _get_gemini():
     global _gemini_model
     if _gemini_model is None:
         genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
-        _gemini_model = genai.GenerativeModel("gemini-2.5-flash")
+        _gemini_model = genai.GenerativeModel("gemini-2.0-flash")
     return _gemini_model
 
 
@@ -105,74 +120,36 @@ def classify_batch(self, device_id: str, transactions: list[dict]):
 @celery_app.task(name="process_chat", bind=True, max_retries=2)
 def process_chat(self, device_id: str, message_text: str):
     """
-    Processes a chat message:
-      - Fetches recent transactions from SQLite for context
-      - Fetches chat history from MongoDB
-      - Calls Gemini with full context
-      - Saves response to MongoDB
-      - Returns the AI response text
+    Processes a chat message with Gemini and persists to SQLite.
     """
     try:
-        db = _get_mongo()
+        emit_event(device_id, "chat_status", "Checking your latest spending...")
         gemini = _get_gemini()
-
-        # --- Load or create chat history ---
-        history_col = db["chat_histories"]
-        history_doc = history_col.find_one({"deviceId": device_id})
-        if not history_doc:
-            history_doc = {"deviceId": device_id, "messages": []}
-            history_col.insert_one(history_doc)
-
-        messages = history_doc.get("messages", [])
 
         # --- Fetch recent transactions for context ---
         recent_tx = get_recent_transactions(device_id, limit=15)
         tx_context = _format_transactions(recent_tx)
 
         # --- Build system prompt ---
-        system_instruction = f"""You are Finize, a personal finance coach for Indian users.
-- Give short, practical, rupee-denominated advice based on the user's actual transactions.
-- Never invent numbers that aren't in the data.
-- Never say you are an AI.
-- Be conversational, not preachy.
-- When relevant, mention the spending category (Food & Dining, Transportation, etc.)
-
-User's Transaction Context:
+        system_instruction = f"""You are Finize, a personal finance coach. 
+Use the context below to help the user. Keep it friendly and concise.
+Context:
 {tx_context}"""
 
-        # --- Build history for Gemini ---
-        past_contents = [
-            {"role": m["role"], "parts": [{"text": m["text"]}]}
-            for m in messages
-        ]
-
-        # --- Call Gemini ---
-        chat_session = gemini.start_chat(
-            history=past_contents,
-        )
-        # Note: system_instruction must be set at model level; workaround:
-        # prepend it to the first message if no history, else send directly
-        if not past_contents:
-            full_message = f"[Context for you only - do not repeat this]\n{system_instruction}\n\n{message_text}"
-        else:
-            full_message = message_text
-
-        result = chat_session.send_message(full_message)
+        emit_event(device_id, "chat_status", "Thinking about your question...")
+        full_prompt = f"{system_instruction}\n\nUser: {message_text}\n\nAssistant:"
+        result = gemini.generate_content(full_prompt)
         response_text = result.text
 
-        # --- Save to MongoDB ---
-        messages.append({"role": "user", "text": message_text})
-        messages.append({"role": "model", "text": response_text})
-        history_col.update_one(
-            {"deviceId": device_id},
-            {"$set": {"messages": messages}},
-            upsert=True,
-        )
+        # --- Save to SQLite Persistence ---
+        save_chat_message(device_id, "assistant", response_text)
 
+        emit_event(device_id, "chat_complete", "Analysis complete!")
         return {"status": "success", "text": response_text}
 
     except Exception as exc:
         logger.error(f"process_chat failed: {exc}")
+        emit_event(device_id, "error", "My brain is a bit foggy right now. Try again?")
         raise self.retry(exc=exc, countdown=3)
 
 
@@ -183,87 +160,96 @@ User's Transaction Context:
 @celery_app.task(name="nl_query", bind=True, max_retries=1)
 def nl_query(self, device_id: str, question: str):
     """
-    Converts a natural language question to SQL, runs it against SQLite,
-    then turns the raw results into a human-readable answer via Gemini.
-
-    Returns: { "sql": str, "rows": list, "answer": str }
+    Converts a natural language question to SQL, runs it against SQLite.
     """
     try:
+        emit_event(device_id, "query_status", "Translating to SQL...")
         gemini = _get_gemini()
         schema = get_schema()
 
         # --- Step 1: NL → SQL ---
-        sql_prompt = f"""You are a SQL expert. Convert the user's question to a valid SQLite query.
-
-Schema:
-{schema}
-
-Rules:
-- ALWAYS include WHERE device_id = '<DEVICE_ID>' — replace <DEVICE_ID> with the literal placeholder ?
-- Only use SELECT statements (no INSERT/UPDATE/DELETE)
-- Return ONLY the SQL query, no explanation, no markdown fences
-- Use LOWER() for case-insensitive category matching where needed
-- Limit results to 100 rows max unless user specifies otherwise
-
-User question: {question}
-
-SQL query:"""
-
+        sql_prompt = f"You are a SQL expert. Schema:\n{schema}\n\nUser: {question}\n\nSQL (SQLite, device_id = ?):"
         sql_response = gemini.generate_content(sql_prompt)
         raw_sql = sql_response.text.strip()
-
-        # Clean up any markdown code fences Gemini might add
         raw_sql = re.sub(r"```(?:sql)?", "", raw_sql).strip().rstrip("`").strip()
 
-        # Safety: only allow SELECT
         if not raw_sql.upper().startswith("SELECT"):
-            return {
-                "sql": raw_sql,
-                "rows": [],
-                "answer": "I can only answer questions by reading your data, not modifying it.",
-            }
+            return {"sql": raw_sql, "rows": [], "answer": "I can only read data."}
 
         # --- Step 2: Execute SQL ---
-        try:
-            rows = query_db(raw_sql, (device_id,))
-        except Exception as db_err:
-            logger.error(f"SQL execution error: {db_err}\nSQL: {raw_sql}")
-            return {
-                "sql": raw_sql,
-                "rows": [],
-                "answer": f"I had trouble running that query. Try rephrasing your question.",
-            }
+        emit_event(device_id, "query_status", "Searching your records...")
+        rows = query_db(raw_sql, (device_id,))
 
         # --- Step 3: Results → Human Answer ---
-        if not rows:
-            return {
-                "sql": raw_sql,
-                "rows": [],
-                "answer": "I couldn't find any matching transactions for that question.",
-            }
-
-        rows_preview = rows[:20]  # Cap context size
-        answer_prompt = f"""You are Finize, a personal finance coach for Indian users.
-
-The user asked: "{question}"
-
-Here are the query results from their transaction database:
-{rows_preview}
-
-Give a clear, concise, friendly answer in plain English. Use ₹ for rupee amounts. 
-Don't mention SQL or databases. Keep it under 3 sentences unless the data warrants more detail."""
-
+        emit_event(device_id, "query_status", "Summarizing results...")
+        answer_prompt = f"Question: {question}\nData: {rows[:20]}\n\nSummarize clearly in 2 sentences:"
         answer_response = gemini.generate_content(answer_prompt)
+        answer_text = answer_response.text.strip()
 
+        # Save to SQLite
+        save_chat_message(device_id, "assistant", answer_text, msg_type='sql_result', metadata=json.dumps({"sql": raw_sql}))
+
+        emit_event(device_id, "query_complete", "Done!")
         return {
             "sql": raw_sql,
             "rows": rows,
-            "answer": answer_response.text.strip(),
+            "answer": answer_text,
         }
 
     except Exception as exc:
         logger.error(f"nl_query failed: {exc}")
+        emit_event(device_id, "error", "Analysis failed.")
         raise self.retry(exc=exc, countdown=3)
+
+
+# ---------------------------------------------------------------------------
+# Task 4: Proactive Reporting Engine
+# ---------------------------------------------------------------------------
+
+@celery_app.task(name="generate_daily_report")
+def generate_daily_report(device_id: str = "all_active_devices"):
+    """
+    Background job to generate a rich JSON report for the user(s).
+    """
+    try:
+        devices = []
+        if device_id == "all_active_devices":
+            # Find all unique device IDs in the DB
+            rows = query_db("SELECT DISTINCT device_id FROM transactions")
+            devices = [r['device_id'] for r in rows]
+        else:
+            devices = [device_id]
+
+        for d_id in devices:
+            emit_event(d_id, "report_status", "Building your daily financial report...")
+            gemini = _get_gemini()
+
+            # 1. Gather Aggregates
+            cat_sums = query_db(
+                "SELECT category, SUM(amount) as total FROM transactions WHERE device_id = ? GROUP BY category",
+                (d_id,)
+            )
+            bank_sums = query_db(
+                "SELECT bank, SUM(amount) as total FROM transactions WHERE device_id = ? GROUP BY bank",
+                (d_id,)
+            )
+
+            # 2. Get Insights from LLM
+            prompt = f"""Generate a financial JSON report. 
+Aggregates: Categories: {cat_sums}, Banks: {bank_sums}.
+Return JSON only: {{ "total_spent": float, "tx_count": int, "summary": "...", "insights": ["...", "...", "..."], "graph_data": {{ "categories": [...], "banks": [...] }} }}"""
+            
+            response = gemini.generate_content(prompt)
+            report_json = re.sub(r"```(?:json)?", "", response.text).strip().rstrip("`").strip()
+
+            # 3. Save to DB
+            save_report(d_id, "daily", report_json)
+            emit_event(d_id, "report_complete", "Report ready!")
+
+        return {"status": "success", "processed": len(devices)}
+    except Exception as e:
+        logger.error(f"Report generation failed: {e}")
+        return {"status": "failed", "error": str(e)}
 
 
 # ---------------------------------------------------------------------------

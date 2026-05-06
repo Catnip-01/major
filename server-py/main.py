@@ -22,10 +22,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from celery.result import AsyncResult
+import asyncio
 from dotenv import load_dotenv
 
-from celery_app import celery_app
-from database import init_db, get_recent_transactions, query_db
+import redis.asyncio as redis
+from celery_app import celery_app, REDIS_URL
+from database import (
+    init_db, get_recent_transactions, query_db,
+    save_chat_message, get_chat_history, get_latest_report
+)
 
 load_dotenv()
 
@@ -57,6 +62,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Shared Redis connection for SSE
+redis_client = redis.from_url(REDIS_URL)
 
 
 
@@ -121,6 +129,9 @@ async def chat(req: ChatRequest):
     if not req.deviceId or not req.message:
         raise HTTPException(400, "deviceId and message required")
 
+    # Save user message to history
+    save_chat_message(req.deviceId, "user", req.message)
+
     task = celery_app.send_task(
         "process_chat",
         args=[req.deviceId, req.message],
@@ -143,6 +154,9 @@ async def nl_query(req: QueryRequest):
     if not req.deviceId or not req.question:
         raise HTTPException(400, "deviceId and question required")
 
+    # Save user question to history
+    save_chat_message(req.deviceId, "user", req.question)
+
     task = celery_app.send_task(
         "nl_query",
         args=[req.deviceId, req.question],
@@ -154,6 +168,46 @@ async def nl_query(req: QueryRequest):
 async def query_status(job_id: str):
     """Poll for NL query result."""
     return _get_task_result(job_id)
+
+
+@app.get("/api/history")
+async def get_history(deviceId: str = Query(...)):
+    """Fetch persistent chat history."""
+    history = get_chat_history(deviceId)
+    return {"history": history}
+
+
+@app.get("/api/reports/latest")
+async def get_report(deviceId: str = Query(...)):
+    """Fetch the latest pre-computed report."""
+    report = get_latest_report(deviceId)
+    if not report:
+        return {"status": "none", "message": "No reports generated yet."}
+    return {"status": "success", "report": report}
+
+
+@app.get("/api/events/{deviceId}")
+async def event_stream(deviceId: str):
+    """SSE endpoint for real-time background updates."""
+    from fastapi.responses import StreamingResponse
+    import json
+
+    async def event_generator():
+        pubsub = redis_client.pubsub()
+        channel = f"events:{deviceId}"
+        await pubsub.subscribe(channel)
+        try:
+            yield f"data: {json.dumps({'event': 'connected', 'message': 'Connected to Palfin Pulse'})}\n\n"
+            while True:
+                message = await pubsub.get_message(ignore_subscribe_messages=True)
+                if message:
+                    data = message['data'].decode('utf-8')
+                    yield f"data: {data}\n\n"
+                await asyncio.sleep(0.5)
+        finally:
+            await pubsub.unsubscribe(channel)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.get("/api/transactions")
