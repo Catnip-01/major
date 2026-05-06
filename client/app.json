@@ -22,7 +22,8 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.palfin2",
-      "permissions": ["READ_SMS", "RECEIVE_SMS"]
+      "permissions": ["READ_SMS", "RECEIVE_SMS"],
+      "usesCleartextTraffic": true
     },
     "web": {
       "favicon": "./assets/favicon.png"

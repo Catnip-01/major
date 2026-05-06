@@ -55,6 +55,18 @@ services:
       - "6379:6379"
     restart: always
 
+  flower:
+    build: .
+    container_name: palfin-flower
+    command: celery -A celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    restart: always
+
 volumes:
   mongo-data:
   sqlite-data:
