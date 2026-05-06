@@ -67,6 +67,28 @@ services:
       - redis
     restart: always
 
+  mongo-express:
+    image: mongo-express
+    container_name: palfin-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongo
+    depends_on:
+      - mongo
+    restart: always
+
+  sqlite-web:
+    image: coleifer/sqlite-web
+    container_name: palfin-sqlite-web
+    ports:
+      - "8082:8080"
+    volumes:
+      - sqlite-data:/data
+    environment:
+      - SQLITE_DATABASE=transactions.db
+    restart: always
+
 volumes:
   mongo-data:
   sqlite-data:
