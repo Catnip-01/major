@@ -80,5 +80,18 @@ export const apiClient = {
       body: JSON.stringify({ deviceId, transactions })
     });
     return await res.json();
+  },
+
+  triggerReportGeneration: async (deviceId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId })
+      });
+      return await res.json();
+    } catch (e) {
+      return { status: 'failed', error: 'Network error' };
+    }
   }
 };

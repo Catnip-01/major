@@ -192,6 +192,20 @@ async def get_report(deviceId: str = Query(...)):
     return {"status": "success", "report": {**report, "data": parsed_data}}
 
 
+@app.post("/api/reports/generate")
+async def generate_report(req: dict):
+    """Manually trigger report generation for a device."""
+    device_id = req.get("deviceId")
+    if not device_id:
+        raise HTTPException(400, "deviceId required")
+
+    task = celery_app.send_task(
+        "generate_daily_report",
+        args=[device_id],
+    )
+    return {"status": "processing", "jobId": task.id}
+
+
 @app.get("/api/events/{deviceId}")
 async def event_stream(deviceId: str):
     """SSE endpoint for real-time background updates."""

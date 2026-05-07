@@ -16,6 +16,7 @@ const screenWidth = Dimensions.get("window").width;
 export const AnalyticsScreen = () => {
   const { theme } = useTheme();
   const [report, setReport] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     load();
@@ -25,6 +26,21 @@ export const AnalyticsScreen = () => {
     const id = await apiClient.getDeviceId();
     const data = await apiClient.fetchLatestReport(id);
     setReport(data);
+  };
+
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    try {
+      const id = await apiClient.getDeviceId();
+      await apiClient.triggerReportGeneration(id);
+      // Wait a bit for the background task to complete and then reload
+      // In a real app, we might use SSE to listen for 'report_complete'
+      setTimeout(load, 5000); 
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const chartConfig = {
@@ -48,8 +64,19 @@ export const AnalyticsScreen = () => {
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Insights</Text>
-        <Text style={[styles.subtitle, { color: theme.subtext }]}>AI-Generated report based on your habits.</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View>
+            <Text style={[styles.title, { color: theme.text }]}>Insights</Text>
+            <Text style={[styles.subtitle, { color: theme.subtext }]}>AI-Generated report based on your habits.</Text>
+          </View>
+          <TouchableOpacity 
+            style={[styles.genBtn, { backgroundColor: isGenerating ? theme.border : theme.primary }]}
+            onPress={handleGenerate}
+            disabled={isGenerating}
+          >
+            <Text style={styles.genBtnText}>{isGenerating ? '...' : 'Generate'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Summary Card */}
@@ -106,6 +133,9 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 24, marginBottom: 24 },
   title: { fontSize: 28, fontWeight: '800' },
   subtitle: { fontSize: 14, marginTop: 4 },
+
+  genBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
+  genBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
   card: { marginHorizontal: 24, padding: 20, borderRadius: 24, marginBottom: 20, elevation: 2 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 },

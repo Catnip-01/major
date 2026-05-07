@@ -50,11 +50,22 @@ export const DashboardScreen = ({ navigation }) => {
     setLoading(false);
   };
 
-  const totalSpent = report?.data?.total_spent || FALLBACK.total_spent;
+  const rawTotal = report?.data?.total_spent;
+  const totalSpent = rawTotal ? new Intl.NumberFormat('en-IN').format(rawTotal) : FALLBACK.total_spent;
   const txCount = report?.data?.tx_count || FALLBACK.tx_count;
   const summary = report?.data?.summary || FALLBACK.summary;
   const insights = report?.data?.insights || FALLBACK.insights;
-  const cats = FALLBACK.categories;
+  
+  // Calculate real categories from report data if available
+  const reportCats = report?.data?.graph_data?.categories;
+  const totalAmount = reportCats?.reduce((sum, c) => sum + (c.total || 0), 0) || 1;
+  
+  const cats = reportCats ? reportCats.map((c, i) => ({
+    label: c.category,
+    amount: `₹${(c.total / 1000).toFixed(1)}k`,
+    pct: Math.round((c.total / totalAmount) * 100),
+    color: ['#FF6B35', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B'][i % 5]
+  })) : FALLBACK.categories;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
