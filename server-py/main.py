@@ -29,7 +29,8 @@ import redis.asyncio as redis
 from celery_app import celery_app, REDIS_URL
 from database import (
     init_db, get_recent_transactions, query_db,
-    save_chat_message, get_chat_history, get_latest_report
+    save_chat_message, get_chat_history, get_latest_report,
+    delete_device_data
 )
 
 load_dotenv()
@@ -256,6 +257,16 @@ async def get_transactions(
 
     rows = query_db(sql, tuple(params))
     return {"transactions": rows, "count": len(rows)}
+
+
+@app.delete("/api/device/{deviceId}")
+async def wipe_device(deviceId: str):
+    """Permanently delete all data for a specific device."""
+    try:
+        delete_device_data(deviceId)
+        return {"status": "success", "message": f"Data for {deviceId} wiped successfully."}
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
 
 
 # ---------------------------------------------------------------------------

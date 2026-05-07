@@ -161,6 +161,18 @@ def get_latest_report(device_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
+def delete_device_data(device_id: str):
+    """Delete all transactions, chats, and reports for a device."""
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM transactions WHERE device_id = ?", (device_id,))
+        conn.execute("DELETE FROM chats WHERE device_id = ?", (device_id,))
+        conn.execute("DELETE FROM reports WHERE device_id = ?", (device_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def get_schema() -> str:
     """Return the CREATE TABLE statement for Gemini's NL→SQL context."""
     return """
