@@ -180,10 +180,16 @@ async def get_history(deviceId: str = Query(...)):
 @app.get("/api/reports/latest")
 async def get_report(deviceId: str = Query(...)):
     """Fetch the latest pre-computed report."""
+    import json as _json
     report = get_latest_report(deviceId)
     if not report:
         return {"status": "none", "message": "No reports generated yet."}
-    return {"status": "success", "report": report}
+    # report["data"] is stored as a raw JSON string — parse it for the client
+    try:
+        parsed_data = _json.loads(report["data"])
+    except Exception:
+        parsed_data = {}
+    return {"status": "success", "report": {**report, "data": parsed_data}}
 
 
 @app.get("/api/events/{deviceId}")

@@ -24,6 +24,8 @@ celery_app.conf.update(
     result_expires=3600,          # job results kept for 1 hour
     task_acks_late=True,          # only ack after task completes (safer)
     worker_prefetch_multiplier=1, # one task at a time per worker slot
+    task_soft_time_limit=60,      # raises SoftTimeLimitExceeded after 60s
+    task_time_limit=90,           # hard kill after 90s
 )
 
 celery_app.conf.beat_schedule = {

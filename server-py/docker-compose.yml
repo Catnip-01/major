@@ -8,63 +8,31 @@ services:
       - "3000:3000"
     environment:
       - PORT=3000
-      - MONGO_URI=mongodb://mongo:27017/palfin
       - REDIS_URL=redis://redis:6379/0
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - SQLITE_PATH=/app/data/transactions.db
-      - HF_SPACE=tanu0410/expense-classifier2
+      - MODEL_DIR=/app/models
     depends_on:
-      - mongo
       - redis
     volumes:
       - sqlite-data:/app/data
+      - model-data:/app/models
     restart: always
 
   worker:
     build: .
     container_name: palfin-worker
-    command: celery -A celery_app worker --loglevel=info --concurrency=4
+    command: celery -A celery_app worker --loglevel=info --concurrency=2
     environment:
-      - MONGO_URI=mongodb://mongo:27017/palfin
       - REDIS_URL=redis://redis:6379/0
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - SQLITE_PATH=/app/data/transactions.db
-      - HF_SPACE=tanu0410/expense-classifier2
+      - MODEL_DIR=/app/models
     depends_on:
-      - mongo
       - redis
     volumes:
       - sqlite-data:/app/data
-    restart: always
-
-  mongo:
-    image: mongo:latest
-    container_name: palfin-mongo
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-    restart: always
-
-  redis:
-    image: redis:alpine
-    container_name: palfin-redis
-    ports:
-      - "6379:6379"
-    restart: always
-
-  flower:
-    build: .
-    container_name: palfin-flower
-    command: celery -A celery_app flower --port=5555
-    ports:
-      - "5555:5555"
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
+      - model-data:/app/models
     restart: always
 
   beat:
@@ -80,17 +48,13 @@ services:
       - sqlite-data:/app/data
     restart: always
 
-  sqlite-web:
-    image: coleifer/sqlite-web
-    container_name: palfin-sqlite-web
+  redis:
+    image: redis:alpine
+    container_name: palfin-redis
     ports:
-      - "8082:8080"
-    volumes:
-      - sqlite-data:/data
-    environment:
-      - SQLITE_DATABASE=transactions.db
+      - "6379:6379"
     restart: always
 
 volumes:
-  mongo-data:
   sqlite-data:
+  model-data:

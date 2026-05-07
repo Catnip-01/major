@@ -1,10 +1,10 @@
 fastapi
 uvicorn[standard]
 celery[redis]
-pymongo
+redis
 google-generativeai
 python-dotenv
-cryptography
 pydantic
-gradio_client
+joblib
+scikit-learn
 httpx

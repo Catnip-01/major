@@ -1,52 +1,56 @@
 """
-classifier.py — Transaction category classifier using HuggingFace Spaces API.
+classifier.py — Local TF-IDF + Logistic Regression classifier.
 
-Uses the Gradio client to call the deployed model at:
-  https://huggingface.co/spaces/tanu0410/expense-classifier2
+Loads models from disk (models/transaction_model.pkl + models/vectorizer.pkl).
+Zero network calls, ~50ms for a batch of 50 transactions.
 
-Batches multiple texts in parallel using ThreadPoolExecutor for speed.
+Model was trained on 4.5M transactions (mitulshah/transaction-categorization
++ 500-row India-specific dataset). See train2.ipynb.
 """
 import os
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from gradio_client import Client
-from dotenv import load_dotenv
-
-load_dotenv()
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-HF_SPACE = os.getenv("HF_SPACE", "tanu0410/expense-classifier2")
-MAX_WORKERS = int(os.getenv("CLASSIFIER_WORKERS", "10"))
+MODEL_DIR = Path(os.getenv("MODEL_DIR", "/app/models"))
+MODEL_PATH = MODEL_DIR / "transaction_model.pkl"
+VECTORIZER_PATH = MODEL_DIR / "vectorizer.pkl"
 
-# Lazily created per-thread client (Gradio Client is not thread-safe to share)
-_client_cache: dict[int, Client] = {}
-
-
-def _get_client() -> Client:
-    """Return a thread-local Gradio client (creates one per thread)."""
-    import threading
-    tid = threading.get_ident()
-    if tid not in _client_cache:
-        _client_cache[tid] = Client(HF_SPACE)
-    return _client_cache[tid]
+# Lazy-loaded singletons — loaded once per worker process
+_model = None
+_vectorizer = None
 
 
-def _classify_one(text: str) -> str:
-    """Call HF Space for a single text. Returns category string."""
+def _load_models():
+    """Load model and vectorizer from disk on first call."""
+    global _model, _vectorizer
+    if _model is not None:
+        return True
+
     try:
-        client = _get_client()
-        result = client.predict(text, api_name="/predict")
-        return str(result).strip()
+        import joblib
+        if not MODEL_PATH.exists() or not VECTORIZER_PATH.exists():
+            logger.error(
+                f"Model files not found at {MODEL_DIR}. "
+                "Place transaction_model.pkl and vectorizer.pkl there."
+            )
+            return False
+
+        _model = joblib.load(MODEL_PATH)
+        _vectorizer = joblib.load(VECTORIZER_PATH)
+        logger.info(f"✅ Loaded local classifier from {MODEL_DIR}")
+        return True
     except Exception as e:
-        logger.warning(f"Classifier error for text '{text[:40]}': {e}")
-        return "Other"
+        logger.error(f"Failed to load classifier: {e}")
+        return False
 
 
 def predict_batch(texts: list[str]) -> list[str]:
     """
-    Classify a batch of transaction texts in parallel.
+    Classify a batch of transaction texts locally.
     Returns a list of category strings in the same order as input.
+    Falls back to 'Other' if models are unavailable.
 
     Example:
         texts = ["Paid Uber for ride", "Zomato order"]
@@ -55,22 +59,15 @@ def predict_batch(texts: list[str]) -> list[str]:
     if not texts:
         return []
 
-    results = ["Other"] * len(texts)
+    if not _load_models():
+        logger.warning("Classifier unavailable — labelling all as 'Other'")
+        return ["Other"] * len(texts)
 
-    with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(texts))) as executor:
-        # Submit all tasks, tracking original index
-        future_to_idx = {
-            executor.submit(_classify_one, text): i
-            for i, text in enumerate(texts)
-        }
-
-        for future in as_completed(future_to_idx):
-            idx = future_to_idx[future]
-            try:
-                results[idx] = future.result()
-            except Exception as e:
-                logger.error(f"Batch classification failed at index {idx}: {e}")
-                results[idx] = "Other"
-
-    logger.info(f"Classified {len(texts)} transactions via HF Space")
-    return results
+    try:
+        vecs = _vectorizer.transform(texts)
+        predictions = _model.predict(vecs).tolist()
+        logger.info(f"Classified {len(texts)} transactions locally")
+        return predictions
+    except Exception as e:
+        logger.error(f"Classification failed: {e}")
+        return ["Other"] * len(texts)
