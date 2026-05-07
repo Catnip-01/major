@@ -12,31 +12,18 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { apiClient } from '../api';
+import { usePulse } from '../context/usePulse';
 import Markdown from 'react-native-markdown-display';
 import { Send, ChevronLeft, Bot, Database } from 'lucide-react-native';
 
 const API_BASE_URL = 'http://3.26.191.49:3000/api';
-
-const pollJob = async (jobId, endpoint, maxAttempts = 12) => {
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(r => setTimeout(r, 2500));
-    try {
-      const res = await fetch(`${API_BASE_URL}/${endpoint}/status/${jobId}`);
-      const data = await res.json();
-      if (data.status === 'completed') return data.result;
-      if (data.status === 'failed') return null;
-    } catch (e) {
-      // continue polling
-    }
-  }
-  return null;
-};
 
 export const ChatDetailScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pulseMessage, setPulseMessage] = useState('');
   const [deviceId, setDeviceId] = useState('');
   const [isQueryMode, setIsQueryMode] = useState(false);
   const flatListRef = useRef(null);
@@ -58,6 +45,32 @@ export const ChatDetailScreen = ({ navigation }) => {
     setMessages(formatted);
   };
 
+  const refreshHistory = async () => {
+    const history = await apiClient.fetchHistory(deviceId);
+    const formatted = (history || []).map(h => ({
+      id: Math.random().toString(),
+      role: h.role === 'assistant' ? 'bot' : 'user',
+      text: h.content || '',
+      metadata: h.metadata ? JSON.parse(h.metadata) : null,
+    }));
+    setMessages(formatted);
+  };
+
+  // Listen for background "Pulse" events
+  usePulse(deviceId, (event) => {
+    // 1. Handle Status Messages (e.g., "Translating to SQL...")
+    if (event.event.includes('status')) {
+      setPulseMessage(event.message);
+    }
+
+    // 2. Handle Completion (Force a refresh of the history)
+    if (event.event.includes('complete')) {
+      setPulseMessage('');
+      setLoading(false);
+      refreshHistory();
+    }
+  });
+
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
@@ -66,53 +79,31 @@ export const ChatDetailScreen = ({ navigation }) => {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
+    setPulseMessage('Sending...');
 
     try {
       const res = await apiClient.sendMessage(deviceId, text, isQueryMode);
 
       if (res?.status === 'failed' || !res?.jobId) {
-        // Server down — show error inline
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
           role: 'bot',
           text: '⚠️ Could not reach the server. Please try again.',
         }]);
         setLoading(false);
+        setPulseMessage('');
         return;
       }
-
-      // Poll for the job result
-      const result = await pollJob(res.jobId, isQueryMode ? 'query' : 'chat');
-
-      if (result?.text) {
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          role: 'bot',
-          text: result.text,
-        }]);
-      } else {
-        // Fallback: refresh history from DB
-        const history = await apiClient.fetchHistory(deviceId);
-        const botReplies = (history || [])
-          .filter(h => h.role === 'assistant')
-          .slice(-1);
-        if (botReplies.length > 0) {
-          setMessages(prev => [...prev, {
-            id: Date.now().toString(),
-            role: 'bot',
-            text: botReplies[0].content,
-          }]);
-        }
-      }
+      // We no longer poll here! usePulse will hear 'complete' and refresh.
     } catch (e) {
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'bot',
         text: '⚠️ Something went wrong. Please try again later.',
       }]);
+      setLoading(false);
+      setPulseMessage('');
     }
-
-    setLoading(false);
   };
 
   const renderItem = ({ item }) => (
@@ -187,7 +178,9 @@ export const ChatDetailScreen = ({ navigation }) => {
       {loading && (
         <View style={[styles.typing, { backgroundColor: theme.card }]}>
           <ActivityIndicator size="small" color={theme.primary} />
-          <Text style={[styles.typingText, { color: theme.primary }]}>Finize is thinking...</Text>
+          <Text style={[styles.typingText, { color: theme.primary }]}>
+            {pulseMessage || 'Finize is thinking...'}
+          </Text>
         </View>
       )}
 

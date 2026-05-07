@@ -2,14 +2,33 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import SmsAndroid from 'react-native-get-sms-android';
 import { apiClient } from '../api';
+import { usePulse } from './usePulse';
 
 const SyncContext = createContext();
 
 export const SyncProvider = ({ children }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
-
+  const [deviceId, setDeviceId] = useState(null);
   const [localTransactions, setLocalTransactions] = useState([]);
+  const [serverTransactions, setServerTransactions] = useState([]);
+
+  useEffect(() => {
+    apiClient.getDeviceId().then(setDeviceId);
+  }, []);
+
+  const refreshServerTxs = async () => {
+    if (!deviceId) return;
+    const data = await apiClient.fetchTransactions(deviceId);
+    setServerTransactions(data || []);
+  };
+
+  // Listen for background events
+  usePulse(deviceId, (event) => {
+    if (event.event === 'classify_complete' || event.event === 'query_complete') {
+      refreshServerTxs();
+    }
+  });
 
   const extractTransaction = (body) => {
     if (!body) return null;
@@ -125,7 +144,16 @@ export const SyncProvider = ({ children }) => {
   };
 
   return (
-    <SyncContext.Provider value={{ isSyncing, lastSync, syncSms, fetchLocalSms, uploadToServer, localTransactions }}>
+    <SyncContext.Provider value={{ 
+      isSyncing, 
+      lastSync, 
+      syncSms, 
+      fetchLocalSms, 
+      uploadToServer, 
+      localTransactions,
+      serverTransactions,
+      refreshServerTxs
+    }}>
       {children}
     </SyncContext.Provider>
   );

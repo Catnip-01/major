@@ -4,12 +4,14 @@ import {
   Text, 
   StyleSheet, 
   ScrollView, 
-  Dimensions 
+  Dimensions,
+  TouchableOpacity
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { apiClient } from '../api';
-import { PieChart, BarChart } from 'react-native-chart-kit';
-import { PieChart as PieIcon, BarChart3, Info } from 'lucide-react-native';
+import { usePulse } from '../context/usePulse';
+import { PieChart } from 'react-native-chart-kit';
+import { PieChart as PieIcon, Info } from 'lucide-react-native';
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -17,28 +19,37 @@ export const AnalyticsScreen = () => {
   const { theme } = useTheme();
   const [report, setReport] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [deviceId, setDeviceId] = useState(null);
 
   useEffect(() => {
-    load();
+    apiClient.getDeviceId().then(id => {
+      setDeviceId(id);
+      load(id);
+    });
   }, []);
 
-  const load = async () => {
-    const id = await apiClient.getDeviceId();
-    const data = await apiClient.fetchLatestReport(id);
+  const load = async (id) => {
+    const dId = id || deviceId;
+    if (!dId) return;
+    const data = await apiClient.fetchLatestReport(dId);
     setReport(data);
   };
+
+  // Listen for pulse events to reload the report
+  usePulse(deviceId, (event) => {
+    if (event.event === 'report_complete') {
+      load();
+      setIsGenerating(false);
+    }
+  });
 
   const handleGenerate = async () => {
     setIsGenerating(true);
     try {
-      const id = await apiClient.getDeviceId();
-      await apiClient.triggerReportGeneration(id);
-      // Wait a bit for the background task to complete and then reload
-      // In a real app, we might use SSE to listen for 'report_complete'
-      setTimeout(load, 5000); 
+      await apiClient.triggerReportGeneration(deviceId);
+      // No longer need setTimeout - usePulse handles the reload!
     } catch (e) {
       console.error(e);
-    } finally {
       setIsGenerating(false);
     }
   };

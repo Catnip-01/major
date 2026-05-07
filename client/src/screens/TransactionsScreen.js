@@ -20,8 +20,14 @@ import {
 
 export const TransactionsScreen = () => {
   const { theme } = useTheme();
-  const { fetchLocalSms, uploadToServer, localTransactions, isSyncing } = useSync();
-  const [txs, setTxs] = useState([]);
+  const { 
+    fetchLocalSms, 
+    uploadToServer, 
+    localTransactions, 
+    isSyncing,
+    serverTransactions,
+    refreshServerTxs
+  } = useSync();
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -32,9 +38,8 @@ export const TransactionsScreen = () => {
   }, []);
 
   const load = async () => {
-    const id = await apiClient.getDeviceId();
-    const data = await apiClient.fetchTransactions(id);
-    setTxs(data || []);
+    setLoading(true);
+    await refreshServerTxs();
     setLoading(false);
   };
 
@@ -49,7 +54,7 @@ export const TransactionsScreen = () => {
     setViewMode('transactions');
   };
 
-  const displayData = viewMode === 'messages' ? localTransactions : txs;
+  const displayData = viewMode === 'messages' ? localTransactions : serverTransactions;
 
   const filteredTxs = displayData.filter(t => 
     t.merchant?.toLowerCase().includes(search.toLowerCase()) || 
