@@ -29,11 +29,13 @@ export const apiClient = {
   fetchTransactions: async (deviceId) => {
     try {
       const res = await fetch(`${API_BASE_URL}/transactions?deviceId=${deviceId}`);
+      if (!res.ok) throw new Error('Server error');
       const data = await res.json();
-      if (data.transactions) {
-        await AsyncStorage.setItem('CACHED_TX', JSON.stringify(data.transactions));
-        return data.transactions;
+      const txList = data.transactions || [];
+      if (txList.length > 0) {
+        await AsyncStorage.setItem('CACHED_TX', JSON.stringify(txList));
       }
+      return txList;
     } catch (e) {
       const cached = await AsyncStorage.getItem('CACHED_TX');
       return cached ? JSON.parse(cached) : [];
@@ -43,11 +45,13 @@ export const apiClient = {
   fetchLatestReport: async (deviceId) => {
     try {
       const res = await fetch(`${API_BASE_URL}/reports/latest?deviceId=${deviceId}`);
+      if (!res.ok) throw new Error('Server error');
       const data = await res.json();
-      if (data.status === 'success') {
+      if (data.status === 'success' && data.report) {
         await AsyncStorage.setItem('CACHED_REPORT', JSON.stringify(data.report));
         return data.report;
       }
+      return null;
     } catch (e) {
       const cached = await AsyncStorage.getItem('CACHED_REPORT');
       return cached ? JSON.parse(cached) : null;
