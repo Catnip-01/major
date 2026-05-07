@@ -13,7 +13,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { apiClient } from '../api';
 import Markdown from 'react-native-markdown-display';
-import { Send, ChevronLeft, Bot } from 'lucide-react-native';
+import { Send, ChevronLeft, Bot, Database } from 'lucide-react-native';
 
 const API_BASE_URL = 'http://13.239.4.192:3000/api';
 
@@ -38,6 +38,7 @@ export const ChatDetailScreen = ({ navigation }) => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [deviceId, setDeviceId] = useState('');
+  const [isQueryMode, setIsQueryMode] = useState(false);
   const flatListRef = useRef(null);
 
   useEffect(() => {
@@ -67,7 +68,7 @@ export const ChatDetailScreen = ({ navigation }) => {
     setLoading(true);
 
     try {
-      const res = await apiClient.sendMessage(deviceId, text);
+      const res = await apiClient.sendMessage(deviceId, text, isQueryMode);
 
       if (res?.status === 'failed' || !res?.jobId) {
         // Server down — show error inline
@@ -81,7 +82,7 @@ export const ChatDetailScreen = ({ navigation }) => {
       }
 
       // Poll for the job result
-      const result = await pollJob(res.jobId, 'chat');
+      const result = await pollJob(res.jobId, isQueryMode ? 'query' : 'chat');
 
       if (result?.text) {
         setMessages(prev => [...prev, {
@@ -155,7 +156,12 @@ export const ChatDetailScreen = ({ navigation }) => {
             <Text style={[styles.headerStatus, { color: theme.secondary }]}>● Online</Text>
           </View>
         </View>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity 
+          style={[styles.queryToggle, { backgroundColor: isQueryMode ? theme.primary + '20' : 'transparent' }]}
+          onPress={() => setIsQueryMode(!isQueryMode)}
+        >
+          <Database size={18} color={isQueryMode ? theme.primary : theme.subtext} />
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -227,6 +233,7 @@ const styles = StyleSheet.create({
   botAvatar: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 15, fontWeight: '700' },
   headerStatus: { fontSize: 11, fontWeight: '600', marginTop: 1 },
+  queryToggle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 
   listContent: { padding: 16, paddingBottom: 8, flexGrow: 1 },
   bubbleWrap: { marginVertical: 4, maxWidth: '85%' },

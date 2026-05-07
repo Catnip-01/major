@@ -48,26 +48,35 @@ export const TransactionsScreen = () => {
 
   const renderItem = ({ item }) => (
     <TouchableOpacity style={[styles.txCard, { backgroundColor: theme.card }]}>
-      <View style={[styles.iconBg, { backgroundColor: theme.primary + '10' }]}>
-        <CreditCard size={20} color={theme.primary} />
+      <View style={styles.txRow}>
+        <View style={[styles.iconBg, { backgroundColor: theme.primary + '10' }]}>
+          <CreditCard size={20} color={theme.primary} />
+        </View>
+        <View style={styles.txInfo}>
+          <Text style={[styles.merchant, { color: theme.text }]} numberOfLines={1}>
+            {item.merchant || 'Unknown Merchant'}
+          </Text>
+          <Text style={[styles.meta, { color: theme.subtext }]}>
+            {item.date || 'Today'} • {item.category || 'Uncategorized'}
+          </Text>
+        </View>
+        <View style={styles.amountWrap}>
+          <Text style={[
+            styles.amount, 
+            { color: item.type === 'credit' ? theme.success : theme.error }
+          ]}>
+            {item.type === 'credit' ? '+' : '-'}₹{item.amount}
+          </Text>
+          <ChevronRight size={14} color={theme.border} />
+        </View>
       </View>
-      <View style={styles.txInfo}>
-        <Text style={[styles.merchant, { color: theme.text }]} numberOfLines={1}>
-          {item.merchant || 'Unknown Merchant'}
-        </Text>
-        <Text style={[styles.meta, { color: theme.subtext }]}>
-          {item.date || 'Today'} • {item.category || 'Uncategorized'}
-        </Text>
-      </View>
-      <View style={styles.amountWrap}>
-        <Text style={[
-          styles.amount, 
-          { color: item.type === 'credit' ? theme.success : theme.error }
-        ]}>
-          {item.type === 'credit' ? '+' : '-'}₹{item.amount}
-        </Text>
-        <ChevronRight size={14} color={theme.border} />
-      </View>
+      {item.raw && (
+        <View style={[styles.rawWrap, { backgroundColor: theme.background }]}>
+          <Text style={[styles.rawText, { color: theme.subtext }]} numberOfLines={3}>
+            {item.raw}
+          </Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 
@@ -127,12 +136,15 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, marginLeft: 12, fontSize: 15 },
 
   listContent: { paddingHorizontal: 24, paddingBottom: 40 },
-  txCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, marginBottom: 12, elevation: 1 },
+  txCard: { padding: 16, borderRadius: 20, marginBottom: 12, elevation: 1 },
+  txRow: { flexDirection: 'row', alignItems: 'center' },
   iconBg: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   txInfo: { flex: 1, marginLeft: 16 },
   merchant: { fontSize: 16, fontWeight: '700' },
   meta: { fontSize: 12, marginTop: 2 },
   amountWrap: { flexDirection: 'row', alignItems: 'center' },
   amount: { fontSize: 16, fontWeight: '800', marginRight: 8 },
+  rawWrap: { marginTop: 12, padding: 10, borderRadius: 8 },
+  rawText: { fontSize: 11, fontStyle: 'italic', lineHeight: 16 },
   empty: { alignItems: 'center', marginTop: 100 },
 });
