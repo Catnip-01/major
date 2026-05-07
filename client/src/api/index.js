@@ -60,7 +60,7 @@ export const apiClient = {
 
   sendMessage: async (deviceId, message, isQuery = false) => {
     const endpoint = isQuery ? '/query' : '/chat';
-    const payload = { deviceId, [isQuery ? 'question' : 'message']: message };
+    const payload = { deviceId, message };
     try {
       const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',

@@ -50,22 +50,30 @@ export const DashboardScreen = ({ navigation }) => {
     setLoading(false);
   };
 
+  const formatCurrency = (val) => {
+    if (!val) return '0';
+    return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  };
+
   const rawTotal = report?.data?.total_spent;
-  const totalSpent = rawTotal ? new Intl.NumberFormat('en-IN').format(rawTotal) : FALLBACK.total_spent;
+  const totalSpent = rawTotal ? formatCurrency(rawTotal) : FALLBACK.total_spent;
   const txCount = report?.data?.tx_count || FALLBACK.tx_count;
   const summary = report?.data?.summary || FALLBACK.summary;
   const insights = report?.data?.insights || FALLBACK.insights;
   
   // Calculate real categories from report data if available
   const reportCats = report?.data?.graph_data?.categories;
-  const totalAmount = reportCats?.reduce((sum, c) => sum + (c.total || 0), 0) || 1;
+  const totalAmount = reportCats?.reduce((sum, c) => sum + (Number(c.total) || 0), 0) || 1;
   
-  const cats = reportCats ? reportCats.map((c, i) => ({
-    label: c.category,
-    amount: `₹${(c.total / 1000).toFixed(1)}k`,
-    pct: Math.round((c.total / totalAmount) * 100),
-    color: ['#FF6B35', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B'][i % 5]
-  })) : FALLBACK.categories;
+  const cats = reportCats ? reportCats.map((c, i) => {
+    const amt = Number(c.total) || 0;
+    return {
+      label: c.category || 'Other',
+      amount: `₹${(amt / 1000).toFixed(1)}k`,
+      pct: Math.round((amt / totalAmount) * 100),
+      color: ['#FF6B35', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B'][i % 5]
+    };
+  }) : FALLBACK.categories;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>

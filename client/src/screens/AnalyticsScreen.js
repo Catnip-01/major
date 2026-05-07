@@ -64,13 +64,13 @@ export const AnalyticsScreen = () => {
     useShadowColorFromDataset: false
   };
 
-  const catData = report?.data?.graph_data?.categories?.map(c => ({
-    name: c.category,
-    population: c.total,
-    color: theme.primary,
+  const catData = report?.data?.graph_data?.categories?.map((c, i) => ({
+    name: c.category || 'Other',
+    population: Number(c.total) || 0,
+    color: ['#FF6B35', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B'][i % 5] || theme.primary,
     legendFontColor: theme.subtext,
     legendFontSize: 12
-  })) || [];
+  })).filter(c => c.population > 0) || [];
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
