@@ -10,19 +10,32 @@ export const SyncProvider = ({ children }) => {
   const [lastSync, setLastSync] = useState(null);
 
   const extractTransaction = (body) => {
-    // Basic regex for Indian banking SMS (covers most common banks)
-    const spentMatch = body.match(/(?:spent|debited|paid|transaction|txn)\s+(?:of\s+)?(?:rs\.?|inr|₹)\s*([\d,.]+)/i);
-    const merchantMatch = body.match(/(?:at|to|on)\s+([A-Za-z0-9\s.*]+?)(?:\s+using|\s+on|\s+at|\s+via|\.|$)/i);
-
-    if (spentMatch) {
-      return {
-        amount: parseFloat(spentMatch[1].replace(/,/g, '')),
-        merchant: merchantMatch ? merchantMatch[1].trim() : 'General Spend',
-        type: 'debit',
-        raw: body
-      };
+    if (!body) return null;
+    const raw = body.trim();
+    
+    // Find amount anywhere in the string
+    let amountMatch = raw.match(/(?:INR|Rs\.?|₹)\s?([0-9,]+(?:\.[0-9]+)?)/i);
+    if (!amountMatch) return null;
+    
+    let amount = parseFloat(amountMatch[1].replace(/,/g, ''));
+    
+    let type = 'debit';
+    if (raw.match(/(credited|received|added|deposited|reversed)/i)) {
+      type = 'credit';
     }
-    return null;
+    
+    let merchant = '';
+    const upiMatch = raw.match(/UPI[/-].+?[/-].+?[/-]([^\s\n/]+)/i) || raw.match(/to\s+([A-Za-z0-9@\s]+?)(?:\s+on|\s+ref|\.|$)/i);
+    if (upiMatch && upiMatch[1] && upiMatch[1].length < 30) {
+      merchant = upiMatch[1].trim();
+    }
+    
+    return {
+      amount,
+      merchant: merchant || 'Unknown Merchant',
+      type,
+      raw: body
+    };
   };
 
   const syncSms = async () => {

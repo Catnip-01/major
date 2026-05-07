@@ -9,15 +9,18 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { apiClient } from '../api';
+import { useSync } from '../context/SyncContext';
 import { 
   Search, 
   CreditCard, 
   ChevronRight, 
-  Filter 
+  Filter,
+  RefreshCw
 } from 'lucide-react-native';
 
 export const TransactionsScreen = () => {
   const { theme } = useTheme();
+  const { syncSms, isSyncing } = useSync();
   const [txs, setTxs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -29,8 +32,13 @@ export const TransactionsScreen = () => {
   const load = async () => {
     const id = await apiClient.getDeviceId();
     const data = await apiClient.fetchTransactions(id);
-    setTxs(data);
+    setTxs(data || []);
     setLoading(false);
+  };
+
+  const handleSync = async () => {
+    await syncSms();
+    await load();
   };
 
   const filteredTxs = txs.filter(t => 
@@ -67,9 +75,18 @@ export const TransactionsScreen = () => {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Ledger</Text>
-        <TouchableOpacity style={[styles.filterBtn, { borderColor: theme.border }]}>
-          <Filter size={18} color={theme.subtext} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <TouchableOpacity 
+            style={[styles.filterBtn, { borderColor: theme.border, backgroundColor: isSyncing ? theme.border : 'transparent' }]}
+            onPress={handleSync}
+            disabled={isSyncing}
+          >
+            <RefreshCw size={18} color={theme.subtext} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.filterBtn, { borderColor: theme.border }]}>
+            <Filter size={18} color={theme.subtext} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={[styles.searchBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
