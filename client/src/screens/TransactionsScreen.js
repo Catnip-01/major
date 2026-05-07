@@ -25,6 +25,8 @@ export const TransactionsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
+  const [viewMode, setViewMode] = useState('transactions'); // 'transactions' | 'messages'
+
   useEffect(() => {
     load();
   }, []);
@@ -38,19 +40,21 @@ export const TransactionsScreen = () => {
 
   const handleFetch = async () => {
     await fetchLocalSms();
+    setViewMode('messages');
   };
 
   const handleUpload = async () => {
     await uploadToServer(localTransactions);
     await load();
+    setViewMode('transactions');
   };
 
-  // Combine remote and local (not yet uploaded) transactions for display
-  const combinedTxs = [...localTransactions, ...txs].filter((v, i, a) => a.findIndex(t => t.id === v.id || t.smsId === v.smsId) === i);
+  const displayData = viewMode === 'messages' ? localTransactions : txs;
 
-  const filteredTxs = combinedTxs.filter(t => 
+  const filteredTxs = displayData.filter(t => 
     t.merchant?.toLowerCase().includes(search.toLowerCase()) || 
-    t.category?.toLowerCase().includes(search.toLowerCase())
+    t.category?.toLowerCase().includes(search.toLowerCase()) ||
+    t.raw?.toLowerCase().includes(search.toLowerCase())
   );
 
   const renderItem = ({ item }) => (
@@ -111,6 +115,26 @@ export const TransactionsScreen = () => {
         </View>
       </View>
 
+      {/* Segmented Control */}
+      <View style={[styles.tabWrap, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <TouchableOpacity 
+          style={[styles.tab, viewMode === 'transactions' && { backgroundColor: theme.primary + '20' }]} 
+          onPress={() => setViewMode('transactions')}
+        >
+          <Text style={[styles.tabText, { color: viewMode === 'transactions' ? theme.primary : theme.subtext }]}>
+            Transactions
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.tab, viewMode === 'messages' && { backgroundColor: theme.primary + '20' }]} 
+          onPress={() => setViewMode('messages')}
+        >
+          <Text style={[styles.tabText, { color: viewMode === 'messages' ? theme.primary : theme.subtext }]}>
+            Raw Messages
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={[styles.searchBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Search size={18} color={theme.subtext} />
         <TextInput
@@ -146,6 +170,10 @@ const styles = StyleSheet.create({
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
   actionBtnText: { fontSize: 13, fontWeight: '600' },
   
+  tabWrap: { flexDirection: 'row', marginHorizontal: 24, marginBottom: 16, padding: 4, borderRadius: 12, borderWidth: 1 },
+  tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
+  tabText: { fontSize: 13, fontWeight: '700' },
+
   searchBox: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 24, paddingHorizontal: 16, height: 50, borderRadius: 16, borderWidth: 1, marginBottom: 20 },
   searchInput: { flex: 1, marginLeft: 12, fontSize: 15 },
 
