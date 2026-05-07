@@ -12,7 +12,7 @@ export const PulseBar = ({ deviceId }) => {
   useEffect(() => {
     if (!deviceId) return;
 
-    const url = `http://13.239.4.192:3000/api/events/${deviceId}`;
+    const url = `http://3.26.191.49:3000/api/events/${deviceId}`;
     const es = new EventSource(url);
 
     es.addEventListener('message', (e) => {

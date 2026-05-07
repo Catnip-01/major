@@ -15,7 +15,7 @@ import { apiClient } from '../api';
 import Markdown from 'react-native-markdown-display';
 import { Send, ChevronLeft, Bot, Database } from 'lucide-react-native';
 
-const API_BASE_URL = 'http://13.239.4.192:3000/api';
+const API_BASE_URL = 'http://3.26.191.49:3000/api';
 
 const pollJob = async (jobId, endpoint, maxAttempts = 12) => {
   for (let i = 0; i < maxAttempts; i++) {
