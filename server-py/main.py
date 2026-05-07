@@ -85,7 +85,7 @@ class ChatRequest(BaseModel):
 
 class QueryRequest(BaseModel):
     deviceId: str
-    question: str
+    message: str
 
 
 # ---------------------------------------------------------------------------
@@ -151,15 +151,15 @@ async def nl_query(req: QueryRequest):
     Enqueue a natural language query.
     Gemini converts it to SQL, runs it, and generates a human answer.
     """
-    if not req.deviceId or not req.question:
-        raise HTTPException(400, "deviceId and question required")
+    if not req.deviceId or not req.message:
+        raise HTTPException(400, "deviceId and message required")
 
-    # Save user question to history
-    save_chat_message(req.deviceId, "user", req.question)
+    # Save user message to history
+    save_chat_message(req.deviceId, "user", req.message)
 
     task = celery_app.send_task(
         "nl_query",
-        args=[req.deviceId, req.question],
+        args=[req.deviceId, req.message],
     )
     return {"status": "processing", "jobId": task.id}
 
