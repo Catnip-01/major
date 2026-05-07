@@ -14,13 +14,13 @@ import {
   Search, 
   CreditCard, 
   ChevronRight, 
-  Filter,
-  RefreshCw
+  Download,
+  Upload
 } from 'lucide-react-native';
 
 export const TransactionsScreen = () => {
   const { theme } = useTheme();
-  const { syncSms, isSyncing } = useSync();
+  const { fetchLocalSms, uploadToServer, localTransactions, isSyncing } = useSync();
   const [txs, setTxs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -36,12 +36,19 @@ export const TransactionsScreen = () => {
     setLoading(false);
   };
 
-  const handleSync = async () => {
-    await syncSms();
+  const handleFetch = async () => {
+    await fetchLocalSms();
+  };
+
+  const handleUpload = async () => {
+    await uploadToServer(localTransactions);
     await load();
   };
 
-  const filteredTxs = txs.filter(t => 
+  // Combine remote and local (not yet uploaded) transactions for display
+  const combinedTxs = [...localTransactions, ...txs].filter((v, i, a) => a.findIndex(t => t.id === v.id || t.smsId === v.smsId) === i);
+
+  const filteredTxs = combinedTxs.filter(t => 
     t.merchant?.toLowerCase().includes(search.toLowerCase()) || 
     t.category?.toLowerCase().includes(search.toLowerCase())
   );
@@ -57,7 +64,7 @@ export const TransactionsScreen = () => {
             {item.merchant || 'Unknown Merchant'}
           </Text>
           <Text style={[styles.meta, { color: theme.subtext }]}>
-            {item.date || 'Today'} • {item.category || 'Uncategorized'}
+            {item.date || 'Today'} • {item.category || (item.smsId ? 'Local (Not Synced)' : 'Uncategorized')}
           </Text>
         </View>
         <View style={styles.amountWrap}>
@@ -84,16 +91,22 @@ export const TransactionsScreen = () => {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Ledger</Text>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity 
-            style={[styles.filterBtn, { borderColor: theme.border, backgroundColor: isSyncing ? theme.border : 'transparent' }]}
-            onPress={handleSync}
+            style={[styles.actionBtn, { borderColor: theme.border, backgroundColor: isSyncing ? theme.border : 'transparent' }]}
+            onPress={handleFetch}
             disabled={isSyncing}
           >
-            <RefreshCw size={18} color={theme.subtext} />
+            <Download size={16} color={theme.text} />
+            <Text style={[styles.actionBtnText, { color: theme.text }]}>Fetch</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.filterBtn, { borderColor: theme.border }]}>
-            <Filter size={18} color={theme.subtext} />
+          <TouchableOpacity 
+            style={[styles.actionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}
+            onPress={handleUpload}
+            disabled={isSyncing || localTransactions.length === 0}
+          >
+            <Upload size={16} color="#fff" />
+            <Text style={[styles.actionBtnText, { color: '#fff' }]}>Sync</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -130,7 +143,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 60 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, marginBottom: 20 },
   title: { fontSize: 28, fontWeight: '800' },
-  filterBtn: { padding: 10, borderRadius: 12, borderWidth: 1 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
+  actionBtnText: { fontSize: 13, fontWeight: '600' },
   
   searchBox: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 24, paddingHorizontal: 16, height: 50, borderRadius: 16, borderWidth: 1, marginBottom: 20 },
   searchInput: { flex: 1, marginLeft: 12, fontSize: 15 },

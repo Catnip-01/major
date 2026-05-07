@@ -9,6 +9,8 @@ export const SyncProvider = ({ children }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
 
+  const [localTransactions, setLocalTransactions] = useState([]);
+
   const extractTransaction = (body) => {
     if (!body) return null;
     const raw = body.trim();
@@ -38,8 +40,8 @@ export const SyncProvider = ({ children }) => {
     };
   };
 
-  const syncSms = async () => {
-    if (Platform.OS !== 'android') return;
+  const fetchLocalSms = async () => {
+    if (Platform.OS !== 'android') return [];
     setIsSyncing(true);
 
     try {
@@ -55,30 +57,31 @@ export const SyncProvider = ({ children }) => {
       if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
         console.log('SMS permission denied');
         setIsSyncing(false);
-        return;
+        return [];
       }
-      const deviceId = await apiClient.getDeviceId();
+
       if (!SmsAndroid || !SmsAndroid.list) {
         console.warn("SMS library not found. Skipping sync (Expected in Expo Go).");
         setIsSyncing(false);
-        return;
+        return [];
       }
 
-      try {
+      return new Promise((resolve) => {
         SmsAndroid.list(
-          JSON.stringify({ box: 'inbox', maxCount: 50 }),
+          JSON.stringify({ box: 'inbox', maxCount: 200 }),
           (fail) => {
             console.error('Failed to list SMS:', fail);
             setIsSyncing(false);
+            resolve([]);
           },
-          async (count, smsList) => {
+          (count, smsList) => {
             const messages = JSON.parse(smsList);
-            const transactions = [];
+            const extracted = [];
 
             messages.forEach((msg) => {
               const tx = extractTransaction(msg.body);
               if (tx) {
-                transactions.push({
+                extracted.push({
                   ...tx,
                   smsId: msg._id.toString(),
                   date: new Date(msg.date).toISOString(),
@@ -87,31 +90,42 @@ export const SyncProvider = ({ children }) => {
               }
             });
 
-            if (transactions.length > 0) {
-              await apiClient.syncTransactions(deviceId, transactions);
-            }
-
+            setLocalTransactions(extracted);
             setLastSync(new Date());
             setIsSyncing(false);
+            resolve(extracted);
           }
         );
-      } catch (nativeErr) {
-        console.error('Native SMS Error:', nativeErr);
-        setIsSyncing(false);
-      }
+      });
     } catch (err) {
       console.error('Sync Error:', err);
       setIsSyncing(false);
+      return [];
     }
   };
 
-  // Initial sync on app load
-  useEffect(() => {
-    syncSms();
-  }, []);
+  const uploadToServer = async (transactionsToUpload) => {
+    if (!transactionsToUpload || transactionsToUpload.length === 0) return;
+    setIsSyncing(true);
+    try {
+      const deviceId = await apiClient.getDeviceId();
+      await apiClient.syncTransactions(deviceId, transactionsToUpload);
+    } catch (e) {
+      console.error('Upload Error:', e);
+    }
+    setIsSyncing(false);
+  };
+
+  // Keep legacy syncSms for any existing calls, but change to use the separated flow
+  const syncSms = async () => {
+    const extracted = await fetchLocalSms();
+    if (extracted.length > 0) {
+      await uploadToServer(extracted);
+    }
+  };
 
   return (
-    <SyncContext.Provider value={{ isSyncing, lastSync, syncSms }}>
+    <SyncContext.Provider value={{ isSyncing, lastSync, syncSms, fetchLocalSms, uploadToServer, localTransactions }}>
       {children}
     </SyncContext.Provider>
   );
