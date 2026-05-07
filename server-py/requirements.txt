@@ -2,7 +2,7 @@ fastapi
 uvicorn[standard]
 celery[redis]
 redis
-google-generativeai
+groq
 python-dotenv
 pydantic
 joblib

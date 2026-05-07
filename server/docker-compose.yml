@@ -11,7 +11,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - ENCRYPTION_KEY=${ENCRYPTION_KEY} # Make sure to pass this dynamically or via .env
-      - GEMINI_API_KEY=${GEMINI_API_KEY} # Required for the backend to talk to Gemini
+      - GROQ_API_KEY=${GROQ_API_KEY} # Required for the backend to talk to Groq
     depends_on:
       - mongo
       - redis

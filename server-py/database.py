@@ -174,7 +174,7 @@ def delete_device_data(device_id: str):
 
 
 def get_schema() -> str:
-    """Return the CREATE TABLE statement for Gemini's NL→SQL context."""
+    """Return the CREATE TABLE statement for Groq's NL→SQL context."""
     return """
 transactions table columns:
   id TEXT, device_id TEXT, sms_id TEXT,

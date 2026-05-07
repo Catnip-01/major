@@ -13,7 +13,7 @@ import re
 
 import json
 import redis
-import google.generativeai as genai
+from groq import Groq
 from dotenv import load_dotenv
 
 from celery_app import celery_app, REDIS_URL
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _redis_client = None
-_gemini_model = None
+_groq_client = None
 
 
 def _get_redis():
@@ -55,12 +55,11 @@ def emit_event(device_id: str, event_type: str, message: str):
         logger.error(f"Failed to emit event: {e}")
 
 
-def _get_gemini():
-    global _gemini_model
-    if _gemini_model is None:
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
-        _gemini_model = genai.GenerativeModel("gemini-2.0-flash")
-    return _gemini_model
+def _get_groq():
+    global _groq_client
+    if _groq_client is None:
+        _groq_client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
+    return _groq_client
 
 
 # ---------------------------------------------------------------------------
@@ -120,11 +119,11 @@ def classify_batch(self, device_id: str, transactions: list[dict]):
 @celery_app.task(name="process_chat", bind=True, max_retries=2)
 def process_chat(self, device_id: str, message_text: str):
     """
-    Processes a chat message with Gemini and persists to SQLite.
+    Processes a chat message with Groq and persists to SQLite.
     """
     try:
         emit_event(device_id, "chat_status", "Checking your latest spending...")
-        gemini = _get_gemini()
+        groq = _get_groq()
 
         # --- Fetch recent transactions for context ---
         recent_tx = get_recent_transactions(device_id, limit=15)
@@ -137,9 +136,15 @@ Context:
 {tx_context}"""
 
         emit_event(device_id, "chat_status", "Thinking about your question...")
-        full_prompt = f"{system_instruction}\n\nUser: {message_text}\n\nAssistant:"
-        result = gemini.generate_content(full_prompt)
-        response_text = result.text
+        
+        chat_completion = groq.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": message_text}
+            ],
+            model="llama-3.3-70b-versatile",
+        )
+        response_text = chat_completion.choices[0].message.content
 
         # --- Save to SQLite Persistence ---
         save_chat_message(device_id, "assistant", response_text)
@@ -164,13 +169,16 @@ def nl_query(self, device_id: str, question: str):
     """
     try:
         emit_event(device_id, "query_status", "Translating to SQL...")
-        gemini = _get_gemini()
+        groq = _get_groq()
         schema = get_schema()
 
         # --- Step 1: NL → SQL ---
         sql_prompt = f"You are a SQL expert. Schema:\n{schema}\n\nUser: {question}\n\nSQL (SQLite, device_id = ?):"
-        sql_response = gemini.generate_content(sql_prompt)
-        raw_sql = sql_response.text.strip()
+        sql_completion = groq.chat.completions.create(
+            messages=[{"role": "user", "content": sql_prompt}],
+            model="llama-3.3-70b-versatile",
+        )
+        raw_sql = sql_completion.choices[0].message.content.strip()
         raw_sql = re.sub(r"```(?:sql)?", "", raw_sql).strip().rstrip("`").strip()
 
         if not raw_sql.upper().startswith("SELECT"):
@@ -183,8 +191,12 @@ def nl_query(self, device_id: str, question: str):
         # --- Step 3: Results → Human Answer ---
         emit_event(device_id, "query_status", "Summarizing results...")
         answer_prompt = f"Question: {question}\nData: {rows[:20]}\n\nSummarize clearly in 2 sentences:"
-        answer_response = gemini.generate_content(answer_prompt)
-        answer_text = answer_response.text.strip()
+        
+        answer_completion = groq.chat.completions.create(
+            messages=[{"role": "user", "content": answer_prompt}],
+            model="llama-3.3-70b-versatile",
+        )
+        answer_text = answer_completion.choices[0].message.content.strip()
 
         # Save to SQLite
         save_chat_message(device_id, "assistant", answer_text, msg_type='sql_result', metadata=json.dumps({"sql": raw_sql}))
@@ -222,7 +234,7 @@ def generate_daily_report(device_id: str = "all_active_devices"):
 
         for d_id in devices:
             emit_event(d_id, "report_status", "Building your daily financial report...")
-            gemini = _get_gemini()
+            groq = _get_groq()
 
             # 1. Gather Aggregates
             cat_sums = query_db(
@@ -239,8 +251,11 @@ def generate_daily_report(device_id: str = "all_active_devices"):
 Aggregates: Categories: {cat_sums}, Banks: {bank_sums}.
 Return JSON only: {{ "total_spent": float, "tx_count": int, "summary": "...", "insights": ["...", "...", "..."], "graph_data": {{ "categories": [...], "banks": [...] }} }}"""
             
-            response = gemini.generate_content(prompt)
-            report_json = re.sub(r"```(?:json)?", "", response.text).strip().rstrip("`").strip()
+            completion = groq.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama-3.3-70b-versatile",
+            )
+            report_json = re.sub(r"```(?:json)?", "", completion.choices[0].message.content).strip().rstrip("`").strip()
 
             # 3. Save to DB
             save_report(d_id, "daily", report_json)

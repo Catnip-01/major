@@ -1,14 +1,13 @@
 {
   "name": "palfin-server",
   "version": "1.0.0",
-  "description": "Palfin Backend with BullMQ and Gemini",
+  "description": "Palfin Backend with BullMQ and Groq",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.2.1",
     "bullmq": "^5.0.0",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",

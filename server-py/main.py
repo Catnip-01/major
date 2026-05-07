@@ -126,7 +126,7 @@ async def sync_sms(req: SyncSmsRequest):
 
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
-    """Enqueue a chat message for Gemini processing. Returns jobId for polling."""
+    """Enqueue a chat message for Groq processing. Returns jobId for polling."""
     if not req.deviceId or not req.message:
         raise HTTPException(400, "deviceId and message required")
 
@@ -150,7 +150,7 @@ async def chat_status(job_id: str):
 async def nl_query(req: QueryRequest):
     """
     Enqueue a natural language query.
-    Gemini converts it to SQL, runs it, and generates a human answer.
+    Groq converts it to SQL, runs it, and generates a human answer.
     """
     if not req.deviceId or not req.message:
         raise HTTPException(400, "deviceId and message required")
