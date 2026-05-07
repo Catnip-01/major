@@ -1,19 +1,36 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  TextInput, 
-  TouchableOpacity, 
-  KeyboardAvoidingView, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { apiClient } from '../api';
 import Markdown from 'react-native-markdown-display';
-import { Send, ChevronLeft, Bot, User } from 'lucide-react-native';
+import { Send, ChevronLeft, Bot } from 'lucide-react-native';
+
+const API_BASE_URL = 'http://13.239.4.192:3000/api';
+
+const pollJob = async (jobId, endpoint, maxAttempts = 12) => {
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 2500));
+    try {
+      const res = await fetch(`${API_BASE_URL}/${endpoint}/status/${jobId}`);
+      const data = await res.json();
+      if (data.status === 'completed') return data.result;
+      if (data.status === 'failed') return null;
+    } catch (e) {
+      // continue polling
+    }
+  }
+  return null;
+};
 
 export const ChatDetailScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -31,59 +48,92 @@ export const ChatDetailScreen = ({ navigation }) => {
     const id = await apiClient.getDeviceId();
     setDeviceId(id);
     const history = await apiClient.fetchHistory(id);
-    // Convert backend schema to UI schema
-    const formatted = history.map(h => ({
+    const formatted = (history || []).map(h => ({
       id: Math.random().toString(),
       role: h.role === 'assistant' ? 'bot' : 'user',
-      text: h.content,
-      type: h.type,
-      metadata: h.metadata ? JSON.parse(h.metadata) : null
+      text: h.content || '',
+      metadata: h.metadata ? JSON.parse(h.metadata) : null,
     }));
     setMessages(formatted);
   };
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
-    
-    const userMsg = { id: Date.now().toString(), role: 'user', text: input };
+
+    const text = input.trim();
+    const userMsg = { id: Date.now().toString(), role: 'user', text };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
 
     try {
-      const res = await apiClient.sendMessage(deviceId, userMsg.text);
-      // If it's a polling API, we wait (or handle SSE if we integrated it here)
-      // For now, let's assume it returns a result or we'll fetch history again
-      setTimeout(async () => {
-        await init(); // Refresh from DB
+      const res = await apiClient.sendMessage(deviceId, text);
+
+      if (res?.status === 'failed' || !res?.jobId) {
+        // Server down — show error inline
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'bot',
+          text: '⚠️ Could not reach the server. Please try again.',
+        }]);
         setLoading(false);
-      }, 3000);
+        return;
+      }
+
+      // Poll for the job result
+      const result = await pollJob(res.jobId, 'chat');
+
+      if (result?.text) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'bot',
+          text: result.text,
+        }]);
+      } else {
+        // Fallback: refresh history from DB
+        const history = await apiClient.fetchHistory(deviceId);
+        const botReplies = (history || [])
+          .filter(h => h.role === 'assistant')
+          .slice(-1);
+        if (botReplies.length > 0) {
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            role: 'bot',
+            text: botReplies[0].content,
+          }]);
+        }
+      }
     } catch (e) {
-      setLoading(false);
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'bot',
+        text: '⚠️ Something went wrong. Please try again later.',
+      }]);
     }
+
+    setLoading(false);
   };
 
   const renderItem = ({ item }) => (
     <View style={[
-      styles.bubbleWrap, 
-      item.role === 'user' ? styles.userWrap : styles.botWrap
+      styles.bubbleWrap,
+      item.role === 'user' ? styles.userWrap : styles.botWrap,
     ]}>
       <View style={[
-        styles.bubble, 
-        item.role === 'user' 
-          ? [styles.userBubble, { backgroundColor: theme.primary }] 
-          : [styles.botBubble, { backgroundColor: theme.card, borderColor: theme.border }]
+        styles.bubble,
+        item.role === 'user'
+          ? [styles.userBubble, { backgroundColor: theme.primary }]
+          : [styles.botBubble, { backgroundColor: theme.card, borderColor: theme.border }],
       ]}>
         {item.role === 'bot' ? (
-          <Markdown style={{ 
-            body: { color: theme.text },
-            strong: { color: theme.primary, fontWeight: '800' }
-          }}>{item.text}</Markdown>
+          <Markdown style={{
+            body: { color: theme.text, fontSize: 15, lineHeight: 22 },
+            strong: { color: theme.primary, fontWeight: '800' },
+          }}>
+            {item.text}
+          </Markdown>
         ) : (
           <Text style={styles.userText}>{item.text}</Text>
-        )}
-        {item.metadata?.sql && (
-          <Text style={[styles.sqlText, { color: theme.subtext }]}>Analysis run on your DB.</Text>
         )}
       </View>
     </View>
@@ -91,30 +141,47 @@ export const ChatDetailScreen = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Bot size={20} color={theme.primary} />
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Finize Coach</Text>
+          <View style={[styles.botAvatar, { backgroundColor: theme.primary + '15' }]}>
+            <Bot size={18} color={theme.primary} />
+          </View>
+          <View>
+            <Text style={[styles.headerTitle, { color: theme.text }]}>Finize Coach</Text>
+            <Text style={[styles.headerStatus, { color: theme.secondary }]}>● Online</Text>
+          </View>
         </View>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 40 }} />
       </View>
 
       <FlatList
         ref={flatListRef}
         data={messages}
-        keyExtractor={(item) => item.id}
+        keyExtractor={item => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        ListEmptyComponent={
+          <View style={styles.emptyChat}>
+            <View style={[styles.emptyChatIcon, { backgroundColor: theme.card }]}>
+              <Bot size={32} color={theme.primary} />
+            </View>
+            <Text style={[styles.emptyChatTitle, { color: theme.text }]}>Ask me anything</Text>
+            <Text style={[styles.emptyChatSub, { color: theme.subtext }]}>
+              I can analyze your spending, find patterns, and give personalized tips.
+            </Text>
+          </View>
+        }
       />
 
       {loading && (
-        <View style={styles.loading}>
+        <View style={[styles.typing, { backgroundColor: theme.card }]}>
           <ActivityIndicator size="small" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.primary }]}>Finize is calculating...</Text>
+          <Text style={[styles.typingText, { color: theme.primary }]}>Finize is thinking...</Text>
         </View>
       )}
 
@@ -129,12 +196,12 @@ export const ChatDetailScreen = ({ navigation }) => {
             placeholderTextColor={theme.subtext}
             value={input}
             onChangeText={setInput}
-            multiline={true}
+            multiline
           />
-          <TouchableOpacity 
-            style={[styles.sendBtn, { backgroundColor: theme.primary }]}
+          <TouchableOpacity
+            style={[styles.sendBtn, { backgroundColor: input.trim() ? theme.primary : theme.border }]}
             onPress={sendMessage}
-            disabled={!input.trim()}
+            disabled={!input.trim() || loading}
           >
             <Send size={18} color="#fff" />
           </TouchableOpacity>
@@ -146,32 +213,46 @@ export const ChatDetailScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    paddingTop: 50, 
-    paddingBottom: 15, 
-    paddingHorizontal: 20,
-    borderBottomWidth: 1 
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 52,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
   },
-  headerInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle: { fontSize: 16, fontWeight: '700' },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  botAvatar: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 15, fontWeight: '700' },
+  headerStatus: { fontSize: 11, fontWeight: '600', marginTop: 1 },
 
-  listContent: { padding: 20, paddingBottom: 40 },
-  bubbleWrap: { marginVertical: 8, maxWidth: '85%' },
+  listContent: { padding: 16, paddingBottom: 8, flexGrow: 1 },
+  bubbleWrap: { marginVertical: 4, maxWidth: '85%' },
   userWrap: { alignSelf: 'flex-end' },
   botWrap: { alignSelf: 'flex-start' },
-  bubble: { padding: 14, borderRadius: 20 },
+  bubble: { padding: 14, borderRadius: 22 },
   userBubble: { borderBottomRightRadius: 4 },
   botBubble: { borderBottomLeftRadius: 4, borderWidth: 1 },
   userText: { color: '#fff', fontSize: 15, lineHeight: 22 },
-  sqlText: { fontSize: 10, marginTop: 8, fontStyle: 'italic', borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', paddingTop: 4 },
 
-  loading: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10, gap: 8 },
-  loadingText: { fontSize: 12, fontWeight: '600' },
+  emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, marginTop: 80 },
+  emptyChatIcon: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 16, elevation: 2 },
+  emptyChatTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  emptyChatSub: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
 
-  inputArea: { flexDirection: 'row', alignItems: 'center', padding: 12, paddingBottom: Platform.OS === 'ios' ? 30 : 12, borderTopWidth: 1 },
-  input: { flex: 1, maxHeight: 100, paddingHorizontal: 16, fontSize: 15, paddingTop: 8, paddingBottom: 8 },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  typing: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 10, marginHorizontal: 16, marginBottom: 8, borderRadius: 16 },
+  typingText: { fontSize: 12, fontWeight: '600' },
+
+  inputArea: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    padding: 12,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 12,
+    borderTopWidth: 1,
+    gap: 10,
+  },
+  input: { flex: 1, maxHeight: 100, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, backgroundColor: 'transparent' },
+  sendBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
 });

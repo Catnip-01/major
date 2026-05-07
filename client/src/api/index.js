@@ -15,11 +15,11 @@ export const apiClient = {
   fetchHistory: async (deviceId) => {
     try {
       const res = await fetch(`${API_BASE_URL}/history?deviceId=${deviceId}`);
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
-      if (data.history) {
-        await AsyncStorage.setItem('CACHED_HISTORY', JSON.stringify(data.history));
-        return data.history;
-      }
+      const historyList = data.history || [];
+      await AsyncStorage.setItem('CACHED_HISTORY', JSON.stringify(historyList));
+      return historyList;
     } catch (e) {
       const cached = await AsyncStorage.getItem('CACHED_HISTORY');
       return cached ? JSON.parse(cached) : [];
@@ -61,13 +61,16 @@ export const apiClient = {
   sendMessage: async (deviceId, message, isQuery = false) => {
     const endpoint = isQuery ? '/query' : '/chat';
     const payload = { deviceId, [isQuery ? 'question' : 'message']: message };
-
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    return await res.json();
+    try {
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    } catch (e) {
+      return { status: 'failed', error: 'Network error' };
+    }
   },
 
   syncTransactions: async (deviceId, transactions) => {
