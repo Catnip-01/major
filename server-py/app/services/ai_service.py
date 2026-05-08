@@ -30,10 +30,15 @@ class AIService:
         return match.group(0) if match else ""
 
     def generate_report(self, prompt: str) -> str:
+        system_prompt = "You are a financial analysis engine. Return ONLY a valid JSON object. Do not include conversational filler, markdown, or explanations."
         content = self.chat_completion([
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ])
-        return re.sub(r"```(?:json)?", "", content).strip().rstrip("`").strip()
+        # Find the first { and the last }
+        match = re.search(r"\{[\s\S]*\}", content)
+        json_str = match.group(0) if match else content
+        return re.sub(r"```(?:json)?", "", json_str).strip().rstrip("`").strip()
 
 # Singleton instance
 ai_service = AIService()
