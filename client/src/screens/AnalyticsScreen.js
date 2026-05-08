@@ -69,30 +69,31 @@ export const AnalyticsScreen = () => {
     }
   };
 
-  const data = report?.data;
-  const rawData = data?.raw_data;
-
   // 1. 14-Day Trend Line Chart
+  const trendPoints = (rawData?.daily_trend && Array.isArray(rawData.daily_trend) && rawData.daily_trend.length > 0) 
+    ? rawData.daily_trend.slice(-7).map(d => Number(d.total) || 0) 
+    : [0, 0];
+  
+  const trendLabels = (rawData?.daily_trend && Array.isArray(rawData.daily_trend) && rawData.daily_trend.length > 0)
+    ? rawData.daily_trend.slice(-7).map(d => (d.day && d.day.includes('-')) ? d.day.split('-')[2] : '??')
+    : ["-", "-"];
+
   const trendData = {
-    labels: (rawData?.daily_trend?.length > 0) 
-      ? rawData.daily_trend.slice(-7).map(d => d.day.split('-')[2]) 
-      : ["-"],
+    labels: trendLabels,
     datasets: [{
-      data: (rawData?.daily_trend?.length > 0) 
-        ? rawData.daily_trend.slice(-7).map(d => Number(d.total)) 
-        : [0]
+      data: trendPoints
     }]
   };
 
   // 2. Bank Share Donut
-  const bankData = (rawData?.bank_share?.length > 0) 
+  const bankData = (rawData?.bank_share && Array.isArray(rawData.bank_share) && rawData.bank_share.length > 0) 
     ? rawData.bank_share.map((b, i) => ({
-        name: b.bank || 'Unknown',
+        name: String(b.bank || 'Unknown'),
         population: Number(b.total) || 0,
         color: ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981'][i % 4],
         legendFontColor: theme.subtext,
         legendFontSize: 12
-      }))
+      })).filter(b => b.population >= 0)
     : [{ name: 'No Data', population: 1, color: theme.border, legendFontColor: theme.subtext, legendFontSize: 12 }];
 
   // 3. Time of Day Bar Chart
@@ -101,10 +102,10 @@ export const AnalyticsScreen = () => {
     labels: ["Morn", "Aft", "Eve", "Nit"],
     datasets: [{
       data: [
-        timeSlots.Morning || 0,
-        timeSlots.Afternoon || 0,
-        timeSlots.Evening || 0,
-        timeSlots.Night || 0
+        Number(timeSlots.Morning) || 0,
+        Number(timeSlots.Afternoon) || 0,
+        Number(timeSlots.Evening) || 0,
+        Number(timeSlots.Night) || 0
       ]
     }]
   };
@@ -113,15 +114,18 @@ export const AnalyticsScreen = () => {
       return (
           <View style={[styles.centered, { backgroundColor: theme.background }]}>
               <Activity size="large" color={theme.primary} />
-              <TouchableOpacity onPress={handleGenerate} style={{ marginTop: 20, padding: 10, backgroundColor: theme.primary, borderRadius: 10 }}>
-                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Generate First Report</Text>
+              <TouchableOpacity 
+                onPress={handleGenerate} 
+                style={{ marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: theme.primary, borderRadius: 16 }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Generate First Audit</Text>
               </TouchableOpacity>
           </View>
       );
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <View>
           <Text style={[styles.title, { color: theme.text }]}>Financial Audit</Text>
@@ -142,19 +146,22 @@ export const AnalyticsScreen = () => {
           <TrendingUp size={18} color={theme.primary} />
           <Text style={[styles.cardTitle, { color: theme.text }]}>7-Day Spend Trend</Text>
         </View>
-        {trendData.labels.length > 0 ? (
+        {rawData?.daily_trend?.length > 0 ? (
           <LineChart
             data={trendData}
             width={screenWidth - 48}
             height={180}
             chartConfig={chartConfig}
-            bezier
+            bezier={trendPoints.length > 2}
             style={styles.chart}
             withInnerLines={false}
             withOuterLines={false}
           />
         ) : (
-          <Text style={styles.emptyText}>No trend data yet.</Text>
+          <View style={{ height: 180, justifyContent: 'center', alignItems: 'center' }}>
+             <Activity size="small" color={theme.border} />
+             <Text style={[styles.emptyText, { marginTop: 8 }]}>Awaiting more data...</Text>
+          </View>
         )}
       </View>
 
@@ -167,13 +174,12 @@ export const AnalyticsScreen = () => {
               </View>
               <PieChart
                 data={bankData}
-                width={screenWidth / 2}
+                width={screenWidth / 2 - 20}
                 height={120}
                 chartConfig={chartConfig}
                 accessor={"population"}
                 backgroundColor={"transparent"}
                 paddingLeft={"15"}
-                center={[0, 0]}
                 hasLegend={false}
               />
           </View>
@@ -187,7 +193,6 @@ export const AnalyticsScreen = () => {
                 width={screenWidth / 2 - 20}
                 height={120}
                 chartConfig={{...chartConfig, barPercentage: 0.4}}
-                style={{ marginLeft: -20 }}
                 withHorizontalLabels={false}
                 fromZero
               />

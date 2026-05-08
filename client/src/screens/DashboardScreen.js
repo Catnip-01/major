@@ -80,8 +80,12 @@ export const DashboardScreen = ({ navigation }) => {
   }) : [];
 
   // Spending Velocity calculation
-  const velocityPct = data.burn_projection > 0 ? Math.min(Math.round((data.total_spent / data.burn_projection) * 100), 100) : 0;
-  const microPct = data.total_spent > 0 ? Math.min(Math.round((microDrain.sum / data.total_spent) * 100), 100) : 0;
+  const safeSpent = Number(data.total_spent) || 0;
+  const safeProj = Number(data.burn_projection) || 1;
+  const velocityPct = Math.min(Math.round((safeSpent / safeProj) * 100), 100) || 0;
+  
+  const safeMicroSum = Number(microDrain.sum) || 0;
+  const microPct = safeSpent > 0 ? Math.min(Math.round((safeMicroSum / safeSpent) * 100), 100) : 0;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
@@ -212,7 +216,7 @@ export const DashboardScreen = ({ navigation }) => {
         {/* CTA */}
         <TouchableOpacity
           style={[styles.cta, { backgroundColor: theme.primary }]}
-          onPress={() => navigation.navigate('ChatDetail')}
+          onPress={() => navigation.navigate('ChatDetail', { sessionId: 'default' })}
         >
           <MessageSquare size={18} color="#fff" />
           <Text style={styles.ctaText}>Ask Finize anything</Text>
