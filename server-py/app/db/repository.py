@@ -142,6 +142,15 @@ def get_all_device_ids() -> list[str]:
     return [r['device_id'] for r in rows]
 
 
+def get_latest_report(device_id: str) -> dict | None:
+    """Fetch latest report."""
+    rows = query_db(
+        "SELECT * FROM reports WHERE device_id = ? ORDER BY created_at DESC LIMIT 1",
+        (device_id,)
+    )
+    return rows[0] if rows else None
+
+
 def delete_device_data(device_id: str):
     """Delete all transactions and reports for a device."""
     conn = get_conn()
