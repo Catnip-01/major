@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from app.db.mongo_repo import save_chat_message, get_chat_history
+from app.db.mongo_repo import save_chat_message, get_chat_history, get_device_sessions
 from celery_app import celery_app
 from pydantic import BaseModel
 import json

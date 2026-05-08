@@ -62,6 +62,7 @@ def get_device_sessions(device_id: str) -> list[dict]:
         last_msg = doc["messages"][0]["text"] if doc.get("messages") else ""
         sessions.append({
             "sessionId": doc["sessionId"],
+            "title": last_msg[:50] + ("..." if len(last_msg) > 50 else "") if last_msg else "New Conversation",
             "lastMessage": last_msg,
             "updatedAt": doc.get("updatedAt", doc.get("createdAt"))
         })
