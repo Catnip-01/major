@@ -20,7 +20,7 @@ async def get_analytics(deviceId: str = Query(...)):
             "bank_share": get_data("bank_usage"),
             "time_slots": get_data("time_of_day_breakdown"),
             "heavy_hitters": get_data("heavy_hitters"),
-            "consistency": get_data("micro_transactions") # Assuming this maps to consistency info
+            "consistency": get_data("micro_transactions")
         }
     }
 
@@ -32,7 +32,21 @@ async def get_report(deviceId: str = Query(...)):
         data = json.loads(report["data"])
     except json.JSONDecodeError:
         data = {"error": "Report data is malformed.", "raw": report["data"]}
-    return {"status": "success", "report": {**report, "data": data}}
+
+    # Enrich with real-time SQL data
+    def get_data(query_name):
+        sql = config_loader.get_query(query_name)
+        return query_db(sql, (deviceId,))
+
+    analytics = {
+        "daily_trend": get_data("daily_spending_stats"),
+        "bank_share": get_data("bank_usage"),
+        "time_slots": get_data("time_of_day_breakdown"),
+        "heavy_hitters": get_data("heavy_hitters"),
+        "consistency": get_data("micro_transactions")
+    }
+
+    return {"status": "success", "report": {**report, "data": data, "analytics": analytics}}
 
 @router.post("/reports/generate")
 async def generate_report(req: dict):
