@@ -12,17 +12,25 @@ export const apiClient = {
     return id;
   },
 
-  fetchHistory: async (deviceId) => {
+  fetchHistory: async (deviceId, sessionId = "default") => {
     try {
-      const res = await fetch(`${API_BASE_URL}/history?deviceId=${deviceId}`);
+      const res = await fetch(`${API_BASE_URL}/history?deviceId=${deviceId}&sessionId=${sessionId}`);
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
-      const historyList = data.history || [];
-      await AsyncStorage.setItem('CACHED_HISTORY', JSON.stringify(historyList));
-      return historyList;
+      return data.history || [];
     } catch (e) {
-      const cached = await AsyncStorage.getItem('CACHED_HISTORY');
-      return cached ? JSON.parse(cached) : [];
+      return [];
+    }
+  },
+
+  fetchSessions: async (deviceId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/sessions?deviceId=${deviceId}`);
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const data = await res.json();
+      return data.sessions || [];
+    } catch (e) {
+      return [];
     }
   },
 
@@ -90,12 +98,6 @@ export const apiClient = {
         body: JSON.stringify({ deviceId })
       });
       return await res.json();
-    } catch (e) {
-      return { status: 'failed', error: 'Network error' };
-    }
-  }
-};
- await res.json();
     } catch (e) {
       return { status: 'failed', error: 'Network error' };
     }
