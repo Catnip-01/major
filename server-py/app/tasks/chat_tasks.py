@@ -25,12 +25,12 @@ def emit_event(device_id: str, event_type: str, message: str):
         logger.error(f"Failed to emit event: {e}")
 
 @celery_app.task(name="process_chat", bind=True, max_retries=2)
-def process_chat(self, device_id: str, message_text: str):
+def process_chat(self, device_id: str, message_text: str, session_id: str = "default"):
     try:
         emit_event(device_id, "chat_status", "Thinking...")
         
         # 1. Fetch Context
-        history = get_chat_history(device_id, limit=10)
+        history = get_chat_history(device_id, session_id=session_id, limit=10)
         recent_txs = get_recent_transactions(device_id, limit=15)
         
         # 2. Fetch Common Merchants for better recognition
@@ -61,7 +61,7 @@ def process_chat(self, device_id: str, message_text: str):
         answer = ai_service.chat_completion(messages)
         
         # 5. Save & Emit
-        save_chat_message(device_id, "assistant", answer)
+        save_chat_message(device_id, "assistant", answer, session_id=session_id)
         emit_event(device_id, "chat_complete", answer)
         
         return {"text": answer}
@@ -72,7 +72,7 @@ def process_chat(self, device_id: str, message_text: str):
         raise self.retry(exc=exc, countdown=3)
 
 @celery_app.task(name="nl_query", bind=True, max_retries=1)
-def nl_query(self, device_id: str, question: str):
+def nl_query(self, device_id: str, question: str, session_id: str = "default"):
     try:
         emit_event(device_id, "query_status", "Translating to SQL...")
         
@@ -92,7 +92,7 @@ def nl_query(self, device_id: str, question: str):
         # 3. Execute and Summarize
         rows = query_db(raw_sql, (device_id,))
         answer_text = ai_service.chat_completion([{"role": "user", "content": f"Question: {question}\nData: {rows[:20]}\nSummarize clearly."}])
-        save_chat_message(device_id, "assistant", answer_text, msg_type='sql_result', metadata=json.dumps({"sql": raw_sql}))
+        save_chat_message(device_id, "assistant", answer_text, session_id=session_id, msg_type='sql_result', metadata=json.dumps({"sql": raw_sql}))
         emit_event(device_id, "query_complete", "Done!")
         
         return {"sql": raw_sql, "rows": rows, "answer": answer_text}

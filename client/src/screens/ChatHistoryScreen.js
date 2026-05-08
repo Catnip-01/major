@@ -24,10 +24,8 @@ export const ChatHistoryScreen = ({ navigation }) => {
     setLoading(true);
     try {
       const id = await apiClient.getDeviceId();
-      const data = await apiClient.fetchHistory(id);
-      // Group messages into conversations (each user message + bot reply = one session)
-      const userMsgs = (data || []).filter(h => h.role === 'user').reverse();
-      setHistory(userMsgs);
+      const data = await apiClient.fetchSessions(id);
+      setHistory(data);
     } catch (e) {
       setHistory([]);
     }
@@ -37,17 +35,17 @@ export const ChatHistoryScreen = ({ navigation }) => {
   const renderItem = ({ item, index }) => (
     <TouchableOpacity
       style={[styles.chatCard, { backgroundColor: theme.card }]}
-      onPress={() => navigation.navigate('ChatDetail')}
+      onPress={() => navigation.navigate('ChatDetail', { sessionId: item.sessionId })}
     >
       <View style={[styles.avatarBg, { backgroundColor: theme.primary + '15' }]}>
         <MessageSquare size={20} color={theme.primary} />
       </View>
       <View style={styles.chatInfo}>
         <Text style={[styles.chatPreview, { color: theme.text }]} numberOfLines={2}>
-          {item.content}
+          {item.title || 'Conversation'}
         </Text>
         <Text style={[styles.chatTime, { color: theme.subtext }]}>
-          {item.created_at || 'Earlier'}
+          {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : 'Earlier'}
         </Text>
       </View>
       <ChevronRight size={16} color={theme.border} />
@@ -60,7 +58,7 @@ export const ChatHistoryScreen = ({ navigation }) => {
         <Text style={[styles.title, { color: theme.text }]}>Chat History</Text>
         <TouchableOpacity
           style={[styles.newChatBtn, { backgroundColor: theme.primary }]}
-          onPress={() => navigation.navigate('ChatDetail')}
+          onPress={() => navigation.navigate('ChatDetail', { sessionId: `session_${Date.now()}` })}
         >
           <Bot size={16} color="#fff" />
           <Text style={styles.newChatText}>New Chat</Text>

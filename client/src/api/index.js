@@ -58,9 +58,9 @@ export const apiClient = {
     }
   },
 
-  sendMessage: async (deviceId, message, isQuery = false) => {
+  sendMessage: async (deviceId, message, isQuery = false, sessionId = "default") => {
     const endpoint = isQuery ? '/query' : '/chat';
-    const payload = { deviceId, message };
+    const payload = { deviceId, message, sessionId };
     try {
       const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
@@ -90,6 +90,12 @@ export const apiClient = {
         body: JSON.stringify({ deviceId })
       });
       return await res.json();
+    } catch (e) {
+      return { status: 'failed', error: 'Network error' };
+    }
+  }
+};
+ await res.json();
     } catch (e) {
       return { status: 'failed', error: 'Network error' };
     }

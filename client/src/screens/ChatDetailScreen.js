@@ -16,9 +16,7 @@ import { usePulse } from '../context/usePulse';
 import Markdown from 'react-native-markdown-display';
 import { Send, ChevronLeft, Bot, Database } from 'lucide-react-native';
 
-const API_BASE_URL = 'http://3.26.191.49:3000/api';
-
-export const ChatDetailScreen = ({ navigation }) => {
+export const ChatDetailScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -26,16 +24,17 @@ export const ChatDetailScreen = ({ navigation }) => {
   const [pulseMessage, setPulseMessage] = useState('');
   const [deviceId, setDeviceId] = useState('');
   const [isQueryMode, setIsQueryMode] = useState(false);
+  const [sessionId, setSessionId] = useState(route.params?.sessionId || `session_${Date.now()}`);
   const flatListRef = useRef(null);
 
   useEffect(() => {
     init();
-  }, []);
+  }, [sessionId]);
 
   const init = async () => {
     const id = await apiClient.getDeviceId();
     setDeviceId(id);
-    const history = await apiClient.fetchHistory(id);
+    const history = await apiClient.fetchHistory(id, sessionId);
     const formatted = (history || []).map(h => ({
       id: Math.random().toString(),
       role: h.role === 'assistant' ? 'bot' : 'user',
@@ -46,7 +45,7 @@ export const ChatDetailScreen = ({ navigation }) => {
   };
 
   const refreshHistory = async () => {
-    const history = await apiClient.fetchHistory(deviceId);
+    const history = await apiClient.fetchHistory(deviceId, sessionId);
     const formatted = (history || []).map(h => ({
       id: Math.random().toString(),
       role: h.role === 'assistant' ? 'bot' : 'user',
@@ -58,12 +57,10 @@ export const ChatDetailScreen = ({ navigation }) => {
 
   // Listen for background "Pulse" events
   usePulse(deviceId, (event) => {
-    // 1. Handle Status Messages (e.g., "Translating to SQL...")
     if (event.event.includes('status')) {
       setPulseMessage(event.message);
     }
 
-    // 2. Handle Completion (Force a refresh of the history)
     if (event.event.includes('complete')) {
       setPulseMessage('');
       setLoading(false);
@@ -82,7 +79,7 @@ export const ChatDetailScreen = ({ navigation }) => {
     setPulseMessage('Sending...');
 
     try {
-      const res = await apiClient.sendMessage(deviceId, text, isQueryMode);
+      const res = await apiClient.sendMessage(deviceId, text, isQueryMode, sessionId);
 
       if (res?.status === 'failed' || !res?.jobId) {
         setMessages(prev => [...prev, {
@@ -94,7 +91,6 @@ export const ChatDetailScreen = ({ navigation }) => {
         setPulseMessage('');
         return;
       }
-      // We no longer poll here! usePulse will hear 'complete' and refresh.
     } catch (e) {
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
@@ -121,6 +117,10 @@ export const ChatDetailScreen = ({ navigation }) => {
           <Markdown style={{
             body: { color: theme.text, fontSize: 15, lineHeight: 22 },
             strong: { color: theme.primary, fontWeight: '800' },
+            table: { borderColor: theme.border, borderWidth: 1, marginVertical: 10 },
+            tr: { borderBottomColor: theme.border, borderBottomWidth: 1 },
+            th: { backgroundColor: theme.card, padding: 8, fontWeight: 'bold' },
+            td: { padding: 8 },
           }}>
             {item.text}
           </Markdown>
@@ -133,7 +133,6 @@ export const ChatDetailScreen = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
@@ -232,10 +231,10 @@ const styles = StyleSheet.create({
   bubbleWrap: { marginVertical: 4, maxWidth: '85%' },
   userWrap: { alignSelf: 'flex-end' },
   botWrap: { alignSelf: 'flex-start' },
-  bubble: { padding: 14, borderRadius: 22 },
+  bubble: { padding: 14, borderRadius: 22, overflow: 'hidden' },
   userBubble: { borderBottomRightRadius: 4 },
   botBubble: { borderBottomLeftRadius: 4, borderWidth: 1 },
-  userText: { color: '#fff', fontSize: 15, lineHeight: 22 },
+  userText: { color: '#fff', fontSize: 15, lineHeight: 22, flexWrap: 'wrap' },
 
   emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, marginTop: 80 },
   emptyChatIcon: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 16, elevation: 2 },
