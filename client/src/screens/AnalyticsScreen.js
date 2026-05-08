@@ -70,35 +70,46 @@ export const AnalyticsScreen = () => {
   };
 
   // 1. 14-Day Trend Line Chart
-  const dailyTrend = report?.daily_trend || [];
+  const dailyTrend = report?.raw_data?.daily_trend || [];
   const trendPoints = dailyTrend.length > 0 
-    ? dailyTrend.slice(-7).map(d => Number(d.total) || 0) 
+    ? dailyTrend.slice(-7).map(d => {
+        const val = Number(d?.total);
+        return isNaN(val) ? 0 : val;
+      }) 
     : [0, 0, 0, 0, 0, 0, 0]; // Placeholder line
   const trendLabels = dailyTrend.length > 0
-    ? dailyTrend.slice(-7).map(d => (d.day && typeof d.day === 'string' && d.day.includes('-')) ? d.day.split('-')[2] : '..')
+    ? dailyTrend.slice(-7).map(d => (d?.day && typeof d.day === 'string' && d.day.includes('-')) ? d.day.split('-')[2] : '..')
     : ["-", "-", "-", "-", "-", "-", "-"];
   const trendData = { labels: trendLabels, datasets: [{ data: trendPoints }] };
 
   // 2. Bank Share Donut
-  const bankShare = report?.bank_share || [];
+  const bankShare = report?.raw_data?.bank_share || [];
   const bankData = bankShare.length > 0 
-    ? bankShare.map((b, i) => ({
-        name: String(b.bank || 'Unknown'),
-        population: Number(b.total) || 0,
-        color: ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981'][i % 4],
-        legendFontColor: theme.subtext,
-        legendFontSize: 12
-      })).filter(b => b.population >= 0)
+    ? bankShare.map((b, i) => {
+        const pop = Number(b?.total);
+        return {
+          name: String(b?.bank || 'Unknown'),
+          population: isNaN(pop) ? 0 : pop,
+          color: ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981'][i % 4],
+          legendFontColor: theme.subtext,
+          legendFontSize: 12
+        };
+      }).filter(b => b.population >= 0)
     : [{ name: 'No Data', population: 1, color: theme.border, legendFontColor: theme.subtext, legendFontSize: 12 }];
 
   // 3. Time of Day Bar Chart
-  const timeSlots = report?.time_slots || {};
+  const timeSlots = report?.raw_data?.time_slots || {};
   const hasTimeData = Object.values(timeSlots).some(v => v > 0);
   const timeData = {
     labels: ["Morn", "Aft", "Eve", "Nit"],
     datasets: [{
       data: hasTimeData 
-        ? [Number(timeSlots.Morning || 0), Number(timeSlots.Afternoon || 0), Number(timeSlots.Evening || 0), Number(timeSlots.Night || 0)]
+        ? [
+            Number(timeSlots.Morning || 0) || 0,
+            Number(timeSlots.Afternoon || 0) || 0,
+            Number(timeSlots.Evening || 0) || 0,
+            Number(timeSlots.Night || 0) || 0
+          ]
         : [1, 1, 1, 1] // Placeholder bars
     }]
   };
@@ -219,7 +230,7 @@ export const AnalyticsScreen = () => {
       {/* 4. Heavy Hitters - Impact Cards */}
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Heavy Hitters</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.impactScroll}>
-          {report?.heavy_hitters?.map((h, i) => (
+          {report?.raw_data?.heavy_hitters?.map((h, i) => (
               <View key={i} style={[styles.impactCard, { backgroundColor: theme.card }]}>
                   <Text style={[styles.impactMerchant, { color: theme.text }]} numberOfLines={1}>{h.merchant}</Text>
                   <Text style={[styles.impactAmount, { color: theme.primary }]}>₹{h.amount}</Text>
