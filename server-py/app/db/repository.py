@@ -3,6 +3,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
+from app.core.config_loader import config_loader
 
 load_dotenv()
 
@@ -110,10 +111,7 @@ def query_db(sql: str, params: tuple = ()) -> list[dict]:
 
 def get_recent_transactions(device_id: str, limit: int = 15) -> list[dict]:
     """Fetch recent transactions for a device."""
-    return query_db(
-        "SELECT * FROM transactions WHERE device_id = ? ORDER BY created_at DESC LIMIT ?",
-        (device_id, limit),
-    )
+    return query_db(config_loader.get_query("get_recent_transactions"), (device_id, limit))
 
 
 def save_chat_message(device_id: str, role: str, content: str, msg_type: str = 'text', metadata: str = None):
@@ -138,21 +136,18 @@ def save_report(device_id: str, report_type: str, data_json: str):
     conn.close()
 
 
-def get_latest_report(device_id: str) -> dict | None:
-    """Fetch latest report."""
-    rows = query_db(
-        "SELECT * FROM reports WHERE device_id = ? ORDER BY created_at DESC LIMIT 1",
-        (device_id,)
-    )
-    return rows[0] if rows else None
+def get_all_device_ids() -> list[str]:
+    """Fetch all unique device IDs."""
+    rows = query_db(config_loader.get_query("get_all_devices"))
+    return [r['device_id'] for r in rows]
 
 
 def delete_device_data(device_id: str):
     """Delete all transactions and reports for a device."""
     conn = get_conn()
     try:
-        conn.execute("DELETE FROM transactions WHERE device_id = ?", (device_id,))
-        conn.execute("DELETE FROM reports WHERE device_id = ?", (device_id,))
+        conn.execute(config_loader.get_query("delete_transactions"), (device_id,))
+        conn.execute(config_loader.get_query("delete_reports"), (device_id,))
         conn.commit()
     finally:
         conn.close()
