@@ -5,13 +5,14 @@ import {
   StyleSheet, 
   ScrollView, 
   Dimensions,
-  TouchableOpacity
+  TouchableOpacity,
+  ActivityIndicator
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { apiClient } from '../api';
 import { usePulse } from '../context/usePulse';
-import { PieChart, BarChart } from 'react-native-chart-kit';
-import { PieChart as PieIcon, Info, Calendar, ShoppingBag, Zap } from 'lucide-react-native';
+import { PieChart, BarChart, LineChart } from 'react-native-chart-kit';
+import { PieChart as PieIcon, Info, Calendar, ShoppingBag, Zap, TrendingUp, Landmark, Clock, Activity } from 'lucide-react-native';
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -55,193 +56,228 @@ export const AnalyticsScreen = () => {
   const chartConfig = {
     backgroundGradientFrom: theme.card,
     backgroundGradientTo: theme.card,
-    color: (opacity = 1) => theme.primary,
+    color: (opacity = 1) => `rgba(${theme.primaryRGB || '59, 130, 246'}, ${opacity})`,
     labelColor: (opacity = 1) => theme.subtext,
     strokeWidth: 2,
     barPercentage: 0.6,
     useShadowColorFromDataset: false,
     decimalPlaces: 0,
+    propsForDots: {
+      r: "4",
+      strokeWidth: "2",
+      stroke: theme.primary
+    }
   };
 
   const data = report?.data;
   const rawData = data?.raw_data;
 
-  // 1. Category Data for Pie Chart
-  const catData = rawData?.categories?.map((c, i) => ({
-    name: c.category || 'Other',
-    population: Number(c.total) || 0,
-    color: ['#FF6B35', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B'][i % 5] || theme.primary,
-    legendFontColor: theme.subtext,
-    legendFontSize: 12
-  })).filter(c => c.population > 0) || [];
-
-  // 2. Day of Week Data for Bar Chart
-  const dowData = {
-    labels: rawData?.dow?.map(d => d.day) || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+  // 1. 14-Day Trend Line Chart
+  const trendData = {
+    labels: rawData?.daily_trend?.slice(-7).map(d => d.day.split('-')[2]) || [],
     datasets: [{
-      data: rawData?.dow?.map(d => Number(d.total) / 1000) || [0, 0, 0, 0, 0, 0, 0]
+      data: rawData?.daily_trend?.slice(-7).map(d => Number(d.total)) || [0]
     }]
   };
 
-  // 3. Needs vs Wants Split
-  const needsWants = data?.needs_wants_split || { needs: 50, wants: 50 };
+  // 2. Bank Share Donut
+  const bankData = rawData?.bank_share?.map((b, i) => ({
+    name: b.bank || 'Unknown',
+    population: Number(b.total) || 0,
+    color: ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981'][i % 4],
+    legendFontColor: theme.subtext,
+    legendFontSize: 12
+  })) || [];
+
+  // 3. Time of Day Bar Chart
+  const timeSlots = rawData?.time_slots || {};
+  const timeData = {
+    labels: ["Morning", "Afternoon", "Evening", "Night"],
+    datasets: [{
+      data: [
+        timeSlots.Morning || 0,
+        timeSlots.Afternoon || 0,
+        timeSlots.Evening || 0,
+        timeSlots.Night || 0
+      ]
+    }]
+  };
+
+  if (!report && !isGenerating) {
+      return (
+          <View style={[styles.centered, { backgroundColor: theme.background }]}>
+              <Activity size="large" color={theme.primary} />
+              <Text style={[styles.loadingText, { color: theme.subtext }]}>Fetching your audit...</Text>
+          </View>
+      );
+  }
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
-            <Text style={[styles.title, { color: theme.text }]}>Analytics</Text>
-            <Text style={[styles.subtitle, { color: theme.subtext }]}>Behavioral deep-dive by Finize AI.</Text>
-          </View>
-          <TouchableOpacity 
-            style={[styles.genBtn, { backgroundColor: isGenerating ? theme.border : theme.primary }]}
-            onPress={handleGenerate}
-            disabled={isGenerating}
-          >
-            <Text style={styles.genBtnText}>{isGenerating ? '...' : 'Refresh'}</Text>
-          </TouchableOpacity>
+        <View>
+          <Text style={[styles.title, { color: theme.text }]}>Financial Audit</Text>
+          <Text style={[styles.subtitle, { color: theme.subtext }]}>Behavioral deep-dive by Finize AI.</Text>
         </View>
+        <TouchableOpacity 
+          style={[styles.genBtn, { backgroundColor: isGenerating ? theme.border : theme.primary }]}
+          onPress={handleGenerate}
+          disabled={isGenerating}
+        >
+          {isGenerating ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.genBtnText}>Refresh</Text>}
+        </TouchableOpacity>
       </View>
 
-      {/* Summary Card */}
+      {/* 1. Daily Trend - Line Chart */}
       <View style={[styles.card, { backgroundColor: theme.card }]}>
         <View style={styles.cardHeader}>
-          <Info size={18} color={theme.primary} />
-          <Text style={[styles.cardTitle, { color: theme.text }]}>Spending Personality</Text>
+          <TrendingUp size={18} color={theme.primary} />
+          <Text style={[styles.cardTitle, { color: theme.text }]}>7-Day Spend Trend</Text>
+        </View>
+        {trendData.labels.length > 0 ? (
+          <LineChart
+            data={trendData}
+            width={screenWidth - 48}
+            height={180}
+            chartConfig={chartConfig}
+            bezier
+            style={styles.chart}
+            withInnerLines={false}
+            withOuterLines={false}
+          />
+        ) : (
+          <Text style={styles.emptyText}>No trend data yet.</Text>
+        )}
+      </View>
+
+      {/* 2. Bank Share & Time of Day - Row */}
+      <View style={styles.row}>
+          <View style={[styles.halfCard, { backgroundColor: theme.card }]}>
+              <View style={styles.cardHeader}>
+                  <Landmark size={16} color={theme.primary} />
+                  <Text style={[styles.cardTitleSmall, { color: theme.text }]}>Bank Share</Text>
+              </View>
+              <PieChart
+                data={bankData}
+                width={screenWidth / 2}
+                height={120}
+                chartConfig={chartConfig}
+                accessor={"population"}
+                backgroundColor={"transparent"}
+                paddingLeft={"15"}
+                center={[0, 0]}
+                hasLegend={false}
+              />
+          </View>
+          <View style={[styles.halfCard, { backgroundColor: theme.card }]}>
+              <View style={styles.cardHeader}>
+                  <Clock size={16} color={theme.primary} />
+                  <Text style={[styles.cardTitleSmall, { color: theme.text }]}>Day Tempo</Text>
+              </View>
+              <BarChart
+                data={timeData}
+                width={screenWidth / 2 - 20}
+                height={120}
+                chartConfig={{...chartConfig, barPercentage: 0.4}}
+                style={{ marginLeft: -20 }}
+                withHorizontalLabels={false}
+                fromZero
+              />
+          </View>
+      </View>
+
+      {/* 3. Consistency Score */}
+      <View style={[styles.card, { backgroundColor: theme.card }]}>
+          <View style={styles.cardHeader}>
+              <Activity size={18} color={theme.primary} />
+              <Text style={[styles.cardTitle, { color: theme.text }]}>Consistency Audit</Text>
+          </View>
+          <View style={styles.consistencyRow}>
+              <View style={styles.consItem}>
+                  <Text style={[styles.consValue, { color: theme.primary }]}>{data?.consistency?.zero_spend_days || 0}</Text>
+                  <Text style={[styles.consLabel, { color: theme.subtext }]}>Zero Days</Text>
+              </View>
+              <View style={[styles.consDivider, { backgroundColor: theme.border }]} />
+              <View style={styles.consItem}>
+                  <Text style={[styles.consValue, { color: theme.error }]}>{data?.consistency?.high_spend_days || 0}</Text>
+                  <Text style={[styles.consLabel, { color: theme.subtext }]}>High Days</Text>
+              </View>
+              <View style={[styles.consDivider, { backgroundColor: theme.border }]} />
+              <View style={styles.consItem}>
+                  <Text style={[styles.consValue, { color: theme.text }]}>₹{data?.consistency?.avg_daily || 0}</Text>
+                  <Text style={[styles.consLabel, { color: theme.subtext }]}>Avg Daily</Text>
+              </View>
+          </View>
+      </View>
+
+      {/* 4. Heavy Hitters - Impact Cards */}
+      <Text style={[styles.sectionTitle, { color: theme.text }]}>Heavy Hitters</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.impactScroll}>
+          {rawData?.heavy_hitters?.map((h, i) => (
+              <View key={i} style={[styles.impactCard, { backgroundColor: theme.card }]}>
+                  <Text style={[styles.impactMerchant, { color: theme.text }]} numberOfLines={1}>{h.merchant}</Text>
+                  <Text style={[styles.impactAmount, { color: theme.primary }]}>₹{h.amount}</Text>
+                  <Text style={[styles.impactDate, { color: theme.subtext }]}>{h.date.split('T')[0]}</Text>
+                  <View style={styles.impactBar}>
+                      <View style={[styles.impactFill, { width: `${Math.min((h.amount / (data?.total_spent || 1)) * 100 * 5, 100)}%`, backgroundColor: theme.primary }]} />
+                  </View>
+                  <Text style={styles.impactPct}>{Math.round((h.amount / (data?.total_spent || 1)) * 100)}% of total</Text>
+              </View>
+          ))}
+      </ScrollView>
+
+      {/* 5. AI Strategic Summary */}
+      <View style={[styles.card, { backgroundColor: theme.card, borderLeftWidth: 4, borderLeftColor: theme.primary }]}>
+        <View style={styles.cardHeader}>
+          <Zap size={18} color={theme.primary} />
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Strategic Tip</Text>
         </View>
         <Text style={[styles.summaryText, { color: theme.text }]}>
-          {data?.behavioral_summary || "Analyzing your patterns... Check back after a few more transactions."}
+          {data?.behavioral_summary || "Analyzing your patterns..."}
         </Text>
-        
-        {/* Needs vs Wants Bar */}
-        <View style={styles.nwContainer}>
-           <View style={styles.nwLabelRow}>
-              <Text style={[styles.nwLabel, { color: theme.subtext }]}>Needs ({needsWants.needs}%)</Text>
-              <Text style={[styles.nwLabel, { color: theme.subtext }]}>Wants ({needsWants.wants}%)</Text>
-           </View>
-           <View style={styles.nwTrack}>
-              <View style={[styles.nwFillNeeds, { width: `${needsWants.needs}%`, backgroundColor: theme.primary }]} />
-              <View style={[styles.nwFillWants, { width: `${needsWants.wants}%`, backgroundColor: theme.secondary }]} />
-           </View>
-        </View>
       </View>
 
-      {/* Day of Week Breakdown */}
-      <View style={[styles.card, { backgroundColor: theme.card }]}>
-        <View style={styles.cardHeader}>
-          <Calendar size={18} color={theme.primary} />
-          <Text style={[styles.cardTitle, { color: theme.text }]}>Daily Spend (₹k)</Text>
-        </View>
-        {rawData?.dow ? (
-          <BarChart
-            data={dowData}
-            width={screenWidth - 80}
-            height={200}
-            chartConfig={chartConfig}
-            verticalLabelRotation={0}
-            fromZero={true}
-            style={{ marginLeft: -10 }}
-          />
-        ) : (
-          <Text style={[styles.emptyText, { color: theme.subtext }]}>Sync more SMS to see daily patterns.</Text>
-        )}
-      </View>
-
-      {/* Merchant Loyalty */}
-      <View style={[styles.card, { backgroundColor: theme.card }]}>
-        <View style={styles.cardHeader}>
-          <ShoppingBag size={18} color={theme.primary} />
-          <Text style={[styles.cardTitle, { color: theme.text }]}>Top Merchants</Text>
-        </View>
-        {rawData?.merchants?.map((m, i) => (
-          <View key={i} style={[styles.merchantRow, i < rawData.merchants.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
-             <View style={{ flex: 1 }}>
-                <Text style={[styles.merchantName, { color: theme.text }]}>{m.merchant}</Text>
-                <Text style={[styles.merchantCount, { color: theme.subtext }]}>{m.count} visits this month</Text>
-             </View>
-             <Text style={[styles.merchantTotal, { color: theme.text }]}>₹{Math.round(m.total)}</Text>
-          </View>
-        )) || (
-          <Text style={[styles.emptyText, { color: theme.subtext }]}>No merchant data yet.</Text>
-        )}
-      </View>
-
-      {/* Category Pie */}
-      <View style={[styles.card, { backgroundColor: theme.card }]}>
-        <View style={styles.cardHeader}>
-          <PieIcon size={18} color={theme.primary} />
-          <Text style={[styles.cardTitle, { color: theme.text }]}>Category Share</Text>
-        </View>
-        {catData.length > 0 ? (
-          <PieChart
-            data={catData}
-            width={screenWidth - 80}
-            height={200}
-            chartConfig={chartConfig}
-            accessor={"population"}
-            backgroundColor={"transparent"}
-            paddingLeft={"15"}
-            absolute={true}
-          />
-        ) : (
-          <Text style={[styles.emptyText, { color: theme.subtext }]}>Not enough data for charts yet.</Text>
-        )}
-      </View>
-
-      {/* Deep Insights Cards */}
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>Finize Strategic Tips</Text>
-      {data?.smart_tips?.map((tip, idx) => (
-        <View key={idx} style={[styles.tipCard, { backgroundColor: theme.card }]}>
-          <View style={styles.tipHeader}>
-            <Zap size={16} color={theme.primary} />
-            <Text style={[styles.tipImpact, { color: theme.primary }]}>{tip.impact} IMPACT</Text>
-          </View>
-          <Text style={[styles.tipTitle, { color: theme.text }]}>{tip.title}</Text>
-          <Text style={[styles.tipDesc, { color: theme.subtext }]}>{tip.description}</Text>
-        </View>
-      )) || (
-        <Text style={[styles.emptyText, { color: theme.subtext, marginLeft: 24 }]}>No deep insights yet.</Text>
-      )}
-
-      <View style={{ height: 40 }} />
+      <View style={{ height: 60 }} />
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 60 },
-  header: { paddingHorizontal: 24, marginBottom: 24 },
-  title: { fontSize: 28, fontWeight: '800' },
-  subtitle: { fontSize: 14, marginTop: 4 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingText: { marginTop: 12, fontSize: 14, fontWeight: '600' },
+  header: { paddingHorizontal: 24, marginBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title: { fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  subtitle: { fontSize: 13, marginTop: 2 },
 
-  genBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
-  genBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  genBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, minWidth: 80, alignItems: 'center', justifyContent: 'center' },
+  genBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
 
-  card: { marginHorizontal: 24, padding: 20, borderRadius: 24, marginBottom: 20, elevation: 2 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '700' },
-  summaryText: { fontSize: 15, lineHeight: 22, marginBottom: 20 },
+  card: { marginHorizontal: 24, padding: 20, borderRadius: 24, marginBottom: 16, elevation: 1 },
+  halfCard: { width: screenWidth / 2 - 32, marginLeft: 24, padding: 16, borderRadius: 24, marginBottom: 16, elevation: 1 },
+  row: { flexDirection: 'row', marginBottom: 16 },
   
-  nwContainer: { marginTop: 10 },
-  nwLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  nwLabel: { fontSize: 11, fontWeight: '600' },
-  nwTrack: { height: 8, borderRadius: 4, flexDirection: 'row', overflow: 'hidden' },
-  nwFillNeeds: { height: 8 },
-  nwFillWants: { height: 8 },
-
-  merchantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
-  merchantName: { fontSize: 14, fontWeight: '700' },
-  merchantCount: { fontSize: 11, marginTop: 2 },
-  merchantTotal: { fontSize: 14, fontWeight: '800' },
-
-  emptyText: { textAlign: 'center', marginVertical: 40, fontSize: 13 },
-
-  sectionTitle: { fontSize: 18, fontWeight: '800', marginHorizontal: 24, marginBottom: 16, marginTop: 10 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
+  cardTitle: { fontSize: 15, fontWeight: '800' },
+  cardTitleSmall: { fontSize: 12, fontWeight: '800' },
+  chart: { marginVertical: 8, borderRadius: 16, marginLeft: -16 },
   
-  tipCard: { marginHorizontal: 24, padding: 18, borderRadius: 20, marginBottom: 12, elevation: 1 },
-  tipHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
-  tipImpact: { fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  tipTitle: { fontSize: 16, fontWeight: '800', marginBottom: 6 },
-  tipDesc: { fontSize: 13, lineHeight: 19 },
+  consistencyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
+  consItem: { flex: 1, alignItems: 'center' },
+  consValue: { fontSize: 20, fontWeight: '900', marginBottom: 4 },
+  consLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
+  consDivider: { width: 1, height: 30 },
+
+  impactScroll: { paddingLeft: 24, marginBottom: 24 },
+  impactCard: { width: 140, padding: 16, borderRadius: 20, marginRight: 12, elevation: 1 },
+  impactMerchant: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
+  impactAmount: { fontSize: 16, fontWeight: '900', marginBottom: 2 },
+  impactDate: { fontSize: 10, marginBottom: 12 },
+  impactBar: { height: 4, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 2, marginBottom: 6 },
+  impactFill: { height: 4, borderRadius: 2 },
+  impactPct: { fontSize: 9, fontWeight: '600', color: '#999' },
+
+  summaryText: { fontSize: 14, lineHeight: 22, fontWeight: '500' },
+  sectionTitle: { fontSize: 18, fontWeight: '900', marginHorizontal: 24, marginBottom: 16, letterSpacing: -0.3 },
+  emptyText: { textAlign: 'center', marginVertical: 20, color: '#999' },
 });

@@ -25,7 +25,7 @@ merchant_frequency: |
   WHERE device_id = ? AND type = 'debit'
   GROUP BY merchant 
   ORDER BY count DESC 
-  LIMIT 10
+  LIMIT 5
 
 savings_rate_data: |
   SELECT 
@@ -39,6 +39,48 @@ average_transaction_value: |
   SELECT AVG(amount) as avg_value 
   FROM transactions 
   WHERE device_id = ? AND type = 'debit'
+
+micro_transactions: |
+  SELECT SUM(amount) as total, COUNT(*) as count 
+  FROM transactions 
+  WHERE device_id = ? AND amount < 100 AND type = 'debit'
+
+time_of_day_breakdown: |
+  SELECT 
+    CASE 
+      WHEN CAST(strftime('%H', date) AS INT) BETWEEN 6 AND 11 THEN 'Morning'
+      WHEN CAST(strftime('%H', date) AS INT) BETWEEN 12 AND 17 THEN 'Afternoon'
+      WHEN CAST(strftime('%H', date) AS INT) BETWEEN 18 AND 23 THEN 'Evening'
+      ELSE 'Night'
+    END as slot,
+    SUM(amount) as total,
+    COUNT(*) as count
+  FROM transactions 
+  WHERE device_id = ? AND type = 'debit'
+  GROUP BY slot
+
+heavy_hitters: |
+  SELECT merchant, amount, date 
+  FROM transactions 
+  WHERE device_id = ? AND type = 'debit' 
+  ORDER BY amount DESC 
+  LIMIT 5
+
+bank_usage: |
+  SELECT bank, SUM(amount) as total, COUNT(*) as count
+  FROM transactions
+  WHERE device_id = ? AND type = 'debit'
+  GROUP BY bank
+  ORDER BY total DESC
+
+daily_spending_stats: |
+  SELECT 
+    strftime('%Y-%m-%d', date) as day,
+    SUM(amount) as total
+  FROM transactions 
+  WHERE device_id = ? AND type = 'debit' AND date >= date('now', '-14 days')
+  GROUP BY day
+  ORDER BY day ASC
 
 subscription_candidates: |
   SELECT merchant, amount, COUNT(*) as count

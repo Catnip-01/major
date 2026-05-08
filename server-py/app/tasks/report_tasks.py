@@ -87,6 +87,13 @@ def generate_daily_report(device_id: str = "all_active_devices"):
             savings_data = query_db(config_loader.get_query("savings_rate_data"), (d_id,))
             atv_data = query_db(config_loader.get_query("average_transaction_value"), (d_id,))
             subs = query_db(config_loader.get_query("subscription_candidates"), (d_id,))
+            
+            # New Data Slices
+            micro = query_db(config_loader.get_query("micro_transactions"), (d_id,))
+            time_slots = query_db(config_loader.get_query("time_of_day_breakdown"), (d_id,))
+            hitters = query_db(config_loader.get_query("heavy_hitters"), (d_id,))
+            bank_usage = query_db(config_loader.get_query("bank_usage"), (d_id,))
+            daily_stats = query_db(config_loader.get_query("daily_spending_stats"), (d_id,))
 
             # 2. Calculate Derived Metrics
             credits = next((item['total'] for item in savings_data if item['type'] == 'credit'), 0)
@@ -95,15 +102,30 @@ def generate_daily_report(device_id: str = "all_active_devices"):
             
             avg_tx = atv_data[0]['avg_value'] if atv_data and atv_data[0]['avg_value'] else 0
             
+            from datetime import datetime
+            day_of_month = datetime.now().day
+            daily_burn = debits / day_of_month if day_of_month > 0 else 0
+            
+            # Consistency calculations
+            avg_daily = debits / len(daily_stats) if daily_stats else 0
+            zero_days = 30 - len(daily_stats) # Simple approximation for month
+            high_days = len([d for d in daily_stats if d['total'] > (avg_daily * 1.2)])
+            low_days = len([d for d in daily_stats if d['total'] < (avg_daily * 0.8)])
+
             # 3. Construct the Behavioral Snapshot for AI
             snapshot = {
                 "total_credits": credits,
                 "total_debits": debits,
                 "savings_rate_pct": round(savings_rate, 2),
                 "avg_transaction_value": round(avg_tx, 2),
+                "daily_burn_rate": round(daily_burn, 2),
+                "micro_transactions": micro[0] if micro else {"total": 0, "count": 0},
                 "top_categories": cat_sums,
                 "day_of_week_distribution": dow_sums,
                 "top_merchants": merchants,
+                "bank_distribution": bank_usage,
+                "time_of_day": time_slots,
+                "heavy_hitters": hitters,
                 "potential_subscriptions": subs[:5]
             }
 
@@ -116,11 +138,23 @@ def generate_daily_report(device_id: str = "all_active_devices"):
             
             # 5. Parse Markdown to JSON and enrich with raw data for UI charts
             report_data = parse_behavioral_markdown(raw_markdown)
+            report_data["daily_burn_rate"] = round(daily_burn, 2)
+            report_data["invisible_drain"] = micro[0] if micro else {"total": 0, "count": 0}
+            report_data["consistency"] = {
+                "zero_spend_days": zero_days,
+                "high_spend_days": high_days,
+                "low_spend_days": low_days,
+                "avg_daily": round(avg_daily, 2)
+            }
             report_data["raw_data"] = {
                 "dow": dow_sums,
                 "merchants": merchants,
                 "savings": {"credits": credits, "debits": debits},
-                "categories": cat_sums
+                "categories": cat_sums,
+                "bank_share": bank_usage,
+                "heavy_hitters": hitters,
+                "time_slots": {item['slot']: item['total'] for item in time_slots},
+                "daily_trend": daily_stats
             }
             
             save_report(d_id, "daily", json.dumps(report_data))

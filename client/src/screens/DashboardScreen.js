@@ -59,8 +59,11 @@ export const DashboardScreen = ({ navigation }) => {
   const data = report?.data || FALLBACK;
   const totalSpent = formatCurrency(data.total_spent);
   const burnProjection = formatCurrency(data.burn_projection);
+  const dailyBurn = formatCurrency(data.daily_burn_rate || 0);
   const summary = data.behavioral_summary || data.summary; // fallback for old reports
   const tips = data.smart_tips || [];
+  const zeroStreak = data.consistency?.zero_spend_days || 0;
+  const microDrain = data.invisible_drain || { sum: 0, count: 0 };
   
   // Calculate real categories from raw_data if available
   const reportCats = data.raw_data?.categories || data.graph_data?.categories;
@@ -78,6 +81,7 @@ export const DashboardScreen = ({ navigation }) => {
 
   // Spending Velocity calculation
   const velocityPct = data.burn_projection > 0 ? Math.min(Math.round((data.total_spent / data.burn_projection) * 100), 100) : 0;
+  const microPct = data.total_spent > 0 ? Math.min(Math.round((microDrain.sum / data.total_spent) * 100), 100) : 0;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
@@ -99,12 +103,20 @@ export const DashboardScreen = ({ navigation }) => {
               </View>
             )}
           </View>
-          <TouchableOpacity
-            onPress={load}
-            style={[styles.refreshBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
-          >
-            <RotateCcw size={16} color={theme.subtext} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {zeroStreak > 0 && (
+              <View style={[styles.streakBadge, { backgroundColor: theme.primary + '15' }]}>
+                <RotateCcw size={12} color={theme.primary} />
+                <Text style={[styles.streakText, { color: theme.primary }]}>{zeroStreak}d Streak</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              onPress={load}
+              style={[styles.refreshBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+            >
+              <RotateCcw size={16} color={theme.subtext} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Main card */}
@@ -116,7 +128,10 @@ export const DashboardScreen = ({ navigation }) => {
         >
           <Text style={styles.cardEyebrow}>MONTHLY SPEND</Text>
           <Text style={styles.cardAmount}>₹{totalSpent}</Text>
-          <Text style={styles.cardSub}>Projected: ₹{burnProjection} by month end</Text>
+          <View style={styles.burnRow}>
+            <Text style={styles.cardSub}>₹{dailyBurn}/day avg</Text>
+            <Text style={styles.cardSub}>Projected: ₹{burnProjection}</Text>
+          </View>
 
           {/* Velocity Progress */}
           <View style={styles.velocityContainer}>
@@ -157,6 +172,21 @@ export const DashboardScreen = ({ navigation }) => {
               <Text style={[styles.barAmt, { color: theme.subtext }]}>{cat.amount}</Text>
             </View>
           ))}
+        </View>
+
+        {/* Invisible Drain Section */}
+        <View style={[styles.drainCard, { backgroundColor: theme.card }]}>
+            <View style={styles.drainHeader}>
+                <Text style={[styles.drainTitle, { color: theme.text }]}>Invisible Drain</Text>
+                <Text style={[styles.drainSubtitle, { color: theme.subtext }]}>Spends under ₹100</Text>
+            </View>
+            <View style={styles.drainRow}>
+                <View style={styles.drainTrack}>
+                    <View style={[styles.drainFill, { width: `${microPct}%`, backgroundColor: theme.error }]} />
+                </View>
+                <Text style={[styles.drainAmt, { color: theme.text }]}>₹{formatCurrency(microDrain.sum)}</Text>
+            </View>
+            <Text style={styles.drainInfo}>You've made {microDrain.count} micro-transactions this month.</Text>
         </View>
 
         {/* AI summary strip */}
@@ -203,12 +233,15 @@ const styles = StyleSheet.create({
   brand: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
   offlineRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
   offlineLabel: { fontSize: 10, fontWeight: '700' },
+  streakBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  streakText: { fontSize: 12, fontWeight: '700' },
   refreshBtn: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
 
   card: { borderRadius: 24, padding: 22, marginBottom: 28 },
   cardEyebrow: { color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 8 },
   cardAmount: { color: '#fff', fontSize: 42, fontWeight: '900', letterSpacing: -1.5, marginBottom: 6 },
-  cardSub: { color: 'rgba(255,255,255,0.65)', fontSize: 13, fontWeight: '600', marginBottom: 18 },
+  burnRow: { flexDirection: 'row', gap: 12, marginBottom: 18 },
+  cardSub: { color: 'rgba(255,255,255,0.65)', fontSize: 13, fontWeight: '600' },
   
   velocityContainer: { marginBottom: 20 },
   velocityLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
@@ -232,6 +265,16 @@ const styles = StyleSheet.create({
   barTrack: { flex: 1, height: 6, backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 3, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3 },
   barAmt: { fontSize: 12, fontWeight: '700', width: 40, textAlign: 'right' },
+
+  drainCard: { padding: 20, borderRadius: 20, marginBottom: 24, elevation: 1 },
+  drainHeader: { marginBottom: 12 },
+  drainTitle: { fontSize: 15, fontWeight: '800' },
+  drainSubtitle: { fontSize: 11, fontWeight: '600', marginTop: 2 },
+  drainRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  drainTrack: { flex: 1, height: 6, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 3, overflow: 'hidden' },
+  drainFill: { height: 6, borderRadius: 3 },
+  drainAmt: { fontSize: 14, fontWeight: '900' },
+  drainInfo: { fontSize: 11, color: '#999', fontWeight: '500' },
 
   summaryStrip: { borderLeftWidth: 3, borderRadius: 14, padding: 16, marginBottom: 24 },
   summaryEye: { fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 6 },

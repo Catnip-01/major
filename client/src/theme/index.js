@@ -1,7 +1,9 @@
 export const COLORS = {
   light: {
     primary: '#0057D9',
+    primaryRGB: '0, 87, 217',
     secondary: '#00b386',
+    secondaryRGB: '0, 179, 134',
     accent: '#6366f1',
     background: '#F8FAFC',
     card: '#FFFFFF',
@@ -15,7 +17,9 @@ export const COLORS = {
   },
   dark: {
     primary: '#3B82F6',
+    primaryRGB: '59, 130, 246',
     secondary: '#10B981',
+    secondaryRGB: '16, 185, 129',
     accent: '#818CF8',
     background: '#0F172A',
     card: '#1E293B',
