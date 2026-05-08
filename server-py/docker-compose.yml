@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: palfin-api
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379/0
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - MONGO_URI=mongodb://mongo:27017/palfin
+      - SQLITE_PATH=/app/data/transactions.db
+      - MODEL_DIR=/app/models
+    depends_on:
+      - redis
+    volumes:
+      - sqlite-data:/app/data
+      - model-data:/app/models
+    restart: always
+
+  worker:
+    build: .
+    container_name: palfin-worker
+    command: celery -A celery_app worker --loglevel=info --concurrency=4
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - MONGO_URI=mongodb://mongo:27017/palfin
+      - SQLITE_PATH=/app/data/transactions.db
+      - MODEL_DIR=/app/models
+    depends_on:
+      - redis
+    volumes:
+      - sqlite-data:/app/data
+      - model-data:/app/models
+    restart: always
+
+  beat:
+    build: .
+    container_name: palfin-beat
+    command: celery -A celery_app beat --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - SQLITE_PATH=/app/data/transactions.db
+    depends_on:
+      - redis
+    volumes:
+      - sqlite-data:/app/data
+    restart: always
+
+  redis:
+    image: redis:alpine
+    container_name: palfin-redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  mongo:
+    image: mongo:7.0
+    container_name: palfin-mongo
+    ports:
+      - "27017:27017"
+    command: ["mongod", "--noauth", "--wiredTigerCacheSizeGB", "0.5"]
+    volumes:
+      - mongo-data:/data/db
+    restart: always
+
+volumes:
+  sqlite-data:
+  model-data:
+  mongo-data:
