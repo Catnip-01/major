@@ -1,4 +1,5 @@
 import json
+import re
 from celery_app import celery_app, REDIS_URL
 from app.db.repository import query_db, save_report, get_all_device_ids
 from app.core.config_loader import config_loader
@@ -14,6 +15,62 @@ def _get_redis():
 def emit_event(device_id: str, event_type: str, message: str):
     r = _get_redis()
     r.publish(f"events:{device_id}", json.dumps({"event": event_type, "message": message}))
+
+def parse_behavioral_markdown(text: str) -> dict:
+    """Parses the strict [TAG] based markdown from AI into a clean JSON dict."""
+    result = {
+        "total_spent": 0,
+        "savings_rate": 0,
+        "needs_wants_split": {"needs": 50, "wants": 50},
+        "burn_projection": 0,
+        "behavioral_summary": "",
+        "smart_tips": [],
+        "top_loyalty": "Unknown",
+        "leaky_bucket_score": 5
+    }
+    
+    try:
+        # 1. Extract Metrics
+        metrics_block = re.search(r"\[METRICS\](.*?)(\[|$)", text, re.DOTALL)
+        if metrics_block:
+            lines = metrics_block.group(1).strip().split('\n')
+            for line in lines:
+                if ':' in line:
+                    key, val = [part.strip() for part in line.split(':', 1)]
+                    val_clean = re.sub(r"[^\d\.]", "", val.replace(",", ""))
+                    try:
+                        if "TOTAL_SPENT" in key: result["total_spent"] = float(val_clean)
+                        elif "SAVINGS_RATE" in key: result["savings_rate"] = float(val_clean)
+                        elif "NEEDS_PCT" in key: result["needs_wants_split"]["needs"] = float(val_clean)
+                        elif "WANTS_PCT" in key: result["needs_wants_split"]["wants"] = float(val_clean)
+                        elif "BURN_PROJECTION" in key: result["burn_projection"] = float(val_clean)
+                        elif "LOYALTY_MERCHANT" in key: result["top_loyalty"] = val
+                        elif "LEAK_SCORE" in key: result["leaky_bucket_score"] = int(float(val_clean))
+                    except: pass
+
+        # 2. Extract Summary
+        summary_block = re.search(r"\[SUMMARY\](.*?)(\[|$)", text, re.DOTALL)
+        if summary_block:
+            result["behavioral_summary"] = summary_block.group(1).strip()
+
+        # 3. Extract Tips
+        tips_block = re.search(r"\[TIPS\](.*?)$", text, re.DOTALL)
+        if tips_block:
+            lines = tips_block.group(1).strip().split('\n')
+            for line in lines:
+                line = line.strip()
+                if (line.startswith('-') or line.startswith('*')) and '|' in line:
+                    parts = [p.strip() for p in line[1:].split('|')]
+                    if len(parts) >= 2:
+                        result["smart_tips"].append({
+                            "title": parts[0],
+                            "description": parts[1],
+                            "impact": parts[2] if len(parts) > 2 else "Medium"
+                        })
+    except Exception as e:
+        logger.error(f"Markdown parsing failed: {e}")
+        
+    return result
 
 @celery_app.task(name="generate_daily_report")
 def generate_daily_report(device_id: str = "all_active_devices"):
@@ -50,15 +107,15 @@ def generate_daily_report(device_id: str = "all_active_devices"):
                 "potential_subscriptions": subs[:5]
             }
 
-            # 4. Call AI for Deep Insights
+            # 4. Call AI for Deep Insights (using new Tag-based Markdown)
             prompt = config_loader.get_prompt("behavioral_analyst", "prompt_template").format(
                 snapshot=json.dumps(snapshot, indent=2)
             )
             
-            report_json_str = ai_service.generate_report(prompt)
+            raw_markdown = ai_service.generate_tag_report(prompt)
             
-            # 5. Enrich the report with raw data for UI charts
-            report_data = json.loads(report_json_str)
+            # 5. Parse Markdown to JSON and enrich with raw data for UI charts
+            report_data = parse_behavioral_markdown(raw_markdown)
             report_data["raw_data"] = {
                 "dow": dow_sums,
                 "merchants": merchants,

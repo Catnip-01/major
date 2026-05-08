@@ -31,16 +31,16 @@ report_generator:
     Banks: {bank_sums}
     
     REQUIRED JSON STRUCTURE:
-    {
-      "total_spent": float,
-      "tx_count": int,
+    {{
+      "total_spent": "float",
+      "tx_count": "int",
       "summary": "A 2-3 sentence overview of the user's financial status.",
       "insights": ["Insight 1", "Insight 2", "Insight 3"],
-      "graph_data": { 
-        "categories": [{"label": "CategoryName", "value": total_amount}, ...], 
-        "banks": [{"label": "BankName", "value": total_amount}, ...] 
-      }
-    }
+      "graph_data": {{ 
+        "categories": [{{ "label": "CategoryName", "value": "total_amount" }}, ...], 
+        "banks": [{{ "label": "BankName", "value": "total_amount" }}, ...] 
+      }}
+    }}
     
     Ensure the JSON is perfectly formatted and contains no other text.
 
@@ -53,24 +53,22 @@ behavioral_analyst:
     {snapshot}
     
     TASK:
-    1. Estimate 'Needs vs Wants' ratio based on categories.
-    2. Identify the 'Top behavioral leak' (e.g., frequent small purchases vs large weekend spikes).
-    3. Detect potential subscriptions from recurring amounts.
-    4. Provide 3 surgical, rupee-denominated tips to save money.
+    Generate a behavioral analysis using the EXACT structure below. Do not use JSON. Use only the [TAGS] and formatting shown.
     
-    REQUIRED JSON STRUCTURE:
-    {
-      "total_spent": float,
-      "savings_rate": float,
-      "needs_wants_split": { "needs": percentage, "wants": percentage },
-      "burn_projection": float,
-      "behavioral_summary": "A sharp 2-sentence summary of their spending personality.",
-      "smart_tips": [
-        { "title": "Tip Title", "description": "Specific rupee-denominated advice", "impact": "High/Medium" }
-      ],
-      "top_loyalty": "Merchant name where they spend most frequently",
-      "leaky_bucket_score": int (1-10, 10 being very leaky)
-    }
+    [METRICS]
+    TOTAL_SPENT: (rupee amount)
+    SAVINGS_RATE: (percentage)
+    NEEDS_PCT: (percentage)
+    WANTS_PCT: (percentage)
+    BURN_PROJECTION: (projected monthly total)
+    LOYALTY_MERCHANT: (name)
+    LEAK_SCORE: (1-10)
     
-    Ensure the JSON is perfectly formatted and contains no other text.
+    [SUMMARY]
+    (A sharp 2-sentence summary of their spending personality)
+    
+    [TIPS]
+    - (Title) | (Description) | (Impact: High/Medium)
+    - (Title) | (Description) | (Impact: High/Medium)
+    - (Title) | (Description) | (Impact: High/Medium)
 

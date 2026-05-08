@@ -48,5 +48,12 @@ class AIService:
         
         return content.strip()
 
+    def generate_tag_report(self, prompt: str) -> str:
+        system_prompt = "You are a behavioral financial analyst. Follow the user's tagging structure exactly. Do not use JSON."
+        return self.chat_completion([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ])
+
 # Singleton instance
 ai_service = AIService()
