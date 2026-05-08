@@ -1,0 +1,5 @@
+# SQL query templates
+summary_report_categories: "SELECT category, SUM(amount) as total FROM transactions WHERE device_id = ? GROUP BY category"
+summary_report_banks: "SELECT bank, SUM(amount) as total FROM transactions WHERE device_id = ? GROUP BY bank"
+get_recent_transactions: "SELECT * FROM transactions WHERE device_id = ? ORDER BY created_at DESC LIMIT ?"
+delete_device_data: "DELETE FROM {table} WHERE device_id = ?"

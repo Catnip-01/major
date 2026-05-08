@@ -3,6 +3,7 @@ uvicorn[standard]
 celery[redis]
 redis
 groq
+pymongo
 python-dotenv
 pydantic
 joblib

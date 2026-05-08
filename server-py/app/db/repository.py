@@ -127,14 +127,6 @@ def save_chat_message(device_id: str, role: str, content: str, msg_type: str = '
     conn.close()
 
 
-def get_chat_history(device_id: str, limit: int = 50) -> list[dict]:
-    """Fetch chat history for a device."""
-    return query_db(
-        "SELECT role, content, type, metadata, created_at FROM chats WHERE device_id = ? ORDER BY created_at ASC LIMIT ?",
-        (device_id, limit)
-    )
-
-
 def save_report(device_id: str, report_type: str, data_json: str):
     """Save report."""
     conn = get_conn()
@@ -156,11 +148,10 @@ def get_latest_report(device_id: str) -> dict | None:
 
 
 def delete_device_data(device_id: str):
-    """Delete all device data."""
+    """Delete all transactions and reports for a device."""
     conn = get_conn()
     try:
         conn.execute("DELETE FROM transactions WHERE device_id = ?", (device_id,))
-        conn.execute("DELETE FROM chats WHERE device_id = ?", (device_id,))
         conn.execute("DELETE FROM reports WHERE device_id = ?", (device_id,))
         conn.commit()
     finally:

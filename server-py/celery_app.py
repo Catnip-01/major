@@ -14,7 +14,11 @@ celery_app = Celery(
     "palfin",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["app.tasks.worker_tasks"],
+    include=[
+        "app.tasks.chat_tasks",
+        "app.tasks.report_tasks",
+        "app.tasks.classification_tasks"
+    ],
 )
 
 celery_app.conf.update(
