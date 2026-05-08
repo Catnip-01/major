@@ -165,4 +165,3 @@ def generate_daily_report(device_id: str = "all_active_devices"):
         import traceback
         logger.error(f"Report generation failed: {e}\n{traceback.format_exc()}")
         return {"status": "failed", "error": str(e)}
- str(e)}
