@@ -2,7 +2,7 @@ import os
 from pymongo import MongoClient
 from datetime import datetime
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongo:27017")
 client = MongoClient(MONGO_URI)
 db = client['palfin']
 chats_collection = db['chats']
