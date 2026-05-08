@@ -33,10 +33,18 @@ def process_chat(self, device_id: str, message_text: str):
         history = get_chat_history(device_id, limit=10)
         recent_txs = get_recent_transactions(device_id, limit=15)
         
-        # 2. Build Prompt
+        # 2. Fetch Common Merchants for better recognition
+        merchants = query_db(
+            "SELECT merchant, SUM(amount) as total FROM transactions WHERE device_id = ? GROUP BY merchant ORDER BY COUNT(*) DESC LIMIT 20", 
+            (device_id,)
+        )
+        merchant_summary = ", ".join([f"{m['merchant']} (₹{int(m['total'])})" for m in merchants])
+        
+        # 3. Build Prompt
         system_prompt = config_loader.get_prompt("finance_coach", "system_prompt")
         messages = [
-            {"role": "system", "content": system_prompt}
+            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": f"USER'S TOP MERCHANTS: {merchant_summary}"}
         ]
         
         if recent_txs:
@@ -46,19 +54,16 @@ def process_chat(self, device_id: str, message_text: str):
         for msg in history:
             messages.append({"role": msg['role'], "content": msg['content']})
         
-        # Add the current message if it's not already in history (though it usually is saved by the API)
-        # Check if last msg in history is the same to avoid duplication
         if not history or history[-1]['content'] != message_text:
              messages.append({"role": "user", "content": message_text})
 
-        # 3. Call AI
+        # 4. Call AI
         answer = ai_service.chat_completion(messages)
         
-        # 4. Save & Emit
+        # 5. Save & Emit
         save_chat_message(device_id, "assistant", answer)
         emit_event(device_id, "chat_complete", answer)
         
-        # Mobile app expects 'text' for chat results
         return {"text": answer}
         
     except Exception as exc:
