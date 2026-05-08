@@ -10,7 +10,7 @@ services:
       - PORT=3000
       - REDIS_URL=redis://redis:6379/0
       - GROQ_API_KEY=${GROQ_API_KEY}
-      - MONGO_URI=mongodb://admin:password@mongo:27017/palfin?authSource=admin
+      - MONGO_URI=mongodb://mongo:27017/palfin
       - SQLITE_PATH=/app/data/transactions.db
       - MODEL_DIR=/app/models
     depends_on:
@@ -27,7 +27,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - GROQ_API_KEY=${GROQ_API_KEY}
-      - MONGO_URI=mongodb://admin:password@mongo:27017/palfin?authSource=admin
+      - MONGO_URI=mongodb://mongo:27017/palfin
       - SQLITE_PATH=/app/data/transactions.db
       - MODEL_DIR=/app/models
     depends_on:
@@ -62,9 +62,6 @@ services:
     container_name: palfin-mongo
     ports:
       - "27017:27017"
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=password
     volumes:
       - mongo-data:/data/db
     restart: always
