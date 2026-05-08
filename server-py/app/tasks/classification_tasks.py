@@ -1,14 +1,20 @@
 import uuid
+import os
 from celery_app import celery_app
 from app.db.repository import upsert_transactions
-from classifier import predict_batch
+from app.services.classifier_factory import get_classifier
 
 @celery_app.task(name="classify_batch", bind=True, max_retries=2)
 def classify_batch(self, device_id: str, transactions: list[dict]):
     try:
         if not transactions: return {"classified": 0}
+        
+        # Select classifier based on environment setting
+        provider = os.getenv("CLASSIFIER_MODE", "local")
+        classifier = get_classifier(provider)
+        
         texts = [tx.get("raw") or tx.get("merchant", "") for tx in transactions]
-        categories = predict_batch(texts)
+        categories = classifier.predict(texts)
         rows = []
         for tx, category in zip(transactions, categories):
             rows.append({
