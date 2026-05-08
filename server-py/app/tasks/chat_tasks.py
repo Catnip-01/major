@@ -70,16 +70,27 @@ def process_chat(self, device_id: str, message_text: str):
 def nl_query(self, device_id: str, question: str):
     try:
         emit_event(device_id, "query_status", "Translating to SQL...")
+        
+        # 1. Fetch Context: Get real merchant names for this user
+        merchants = query_db("SELECT DISTINCT merchant FROM transactions WHERE device_id = ?", (device_id,))
+        merchant_list = [m['merchant'] for m in merchants if m['merchant']]
+        
+        # 2. Generate SQL with context
         schema = get_schema()
-        raw_sql = ai_service.nl_to_sql(schema, question)
+        # Pass the merchant list into the prompt
+        enhanced_question = f"{question}\n\n[CONTEXT: Existing Merchants in DB: {', '.join(merchant_list[:50])}]"
+        
+        raw_sql = ai_service.nl_to_sql(schema, enhanced_question)
         if not raw_sql.upper().startswith("SELECT"):
             return {"sql": raw_sql, "rows": [], "answer": "I could not generate a valid SQL query."}
+        
+        # 3. Execute and Summarize
         rows = query_db(raw_sql, (device_id,))
         answer_text = ai_service.chat_completion([{"role": "user", "content": f"Question: {question}\nData: {rows[:20]}\nSummarize clearly."}])
         save_chat_message(device_id, "assistant", answer_text, msg_type='sql_result', metadata=json.dumps({"sql": raw_sql}))
         emit_event(device_id, "query_complete", "Done!")
         
-        # Mobile app expects 'answer' and 'sql' for query results
         return {"sql": raw_sql, "rows": rows, "answer": answer_text}
     except Exception as exc:
+        logger.error(f"NL Query failed: {exc}")
         raise self.retry(exc=exc, countdown=3)
