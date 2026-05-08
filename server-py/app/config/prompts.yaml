@@ -17,32 +17,11 @@ sql_generator:
     
     RULES:
     1. Security: All queries MUST include a WHERE clause filtering by `device_id = ?`.
-    2. Integrity: Output ONLY raw SQL starting with `SELECT`. No markdown formatting, no backticks, no conversational fillers.
-    3. Accuracy: Ensure the query matches the schema provided. Handle date comparisons correctly (SQLite handles 'DD-MM-YY' formats via specific string manipulation if necessary).
-    4. Safety: NEVER output DELETE, DROP, UPDATE, or INSERT queries. Only read-only SELECT queries are allowed.
-
-report_generator:
-  prompt_template: |
-    You are an expert financial analyst. 
-    Analyze the provided aggregated transaction data and generate a comprehensive financial health report in strictly formatted JSON.
-    
-    INPUT DATA:
-    Categories: {cat_sums}
-    Banks: {bank_sums}
-    
-    REQUIRED JSON STRUCTURE:
-    {{
-      "total_spent": "float",
-      "tx_count": "int",
-      "summary": "A 2-3 sentence overview of the user's financial status.",
-      "insights": ["Insight 1", "Insight 2", "Insight 3"],
-      "graph_data": {{ 
-        "categories": [{{ "label": "CategoryName", "value": "total_amount" }}, ...], 
-        "banks": [{{ "label": "BankName", "value": "total_amount" }}, ...] 
-      }}
-    }}
-    
-    Ensure the JSON is perfectly formatted and contains no other text.
+    2. Vague Search: User queries are often imprecise. ALWAYS use 'LIKE %term%' instead of '=' for merchant names or categories unless an exact match is absolutely certain.
+    3. Integrity: Output ONLY raw SQL starting with `SELECT`. No markdown, no backticks, no text before or after.
+    4. Accuracy: Ensure the query is complete. End with a semicolon (;).
+    5. Schema: Use the provided schema. 
+    6. Safety: ONLY SELECT queries are allowed.
 
 behavioral_analyst:
   prompt_template: |
@@ -71,4 +50,3 @@ behavioral_analyst:
     - (Title) | (Description) | (Impact: High/Medium)
     - (Title) | (Description) | (Impact: High/Medium)
     - (Title) | (Description) | (Impact: High/Medium)
-

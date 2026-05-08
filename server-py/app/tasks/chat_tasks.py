@@ -5,6 +5,7 @@ import redis
 from celery_app import celery_app, REDIS_URL
 from app.db.repository import query_db, get_schema, get_recent_transactions
 from app.db.mongo_repo import save_chat_message, get_chat_history
+from app.core.config_loader import config_loader
 from app.services.ai_service import ai_service
 
 logger = logging.getLogger(__name__)
@@ -33,8 +34,9 @@ def process_chat(self, device_id: str, message_text: str):
         recent_txs = get_recent_transactions(device_id, limit=15)
         
         # 2. Build Prompt
+        system_prompt = config_loader.get_prompt("finance_coach", "system_prompt")
         messages = [
-            {"role": "system", "content": "You are Finize, a helpful AI financial coach. Use the provided transaction data and chat history to give personalized advice. Be concise, friendly, and professional."}
+            {"role": "system", "content": system_prompt}
         ]
         
         if recent_txs:

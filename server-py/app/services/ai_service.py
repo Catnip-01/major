@@ -3,6 +3,8 @@ import re
 from groq import Groq
 from dotenv import load_dotenv
 
+from app.core.config_loader import config_loader
+
 load_dotenv()
 
 class AIService:
@@ -18,7 +20,7 @@ class AIService:
         return completion.choices[0].message.content
 
     def nl_to_sql(self, schema: str, question: str) -> str:
-        system_prompt = "You are a SQL expert. Output ONLY valid SQL code starting with SELECT. Do not include any conversational text, explanations, or markdown."
+        system_prompt = config_loader.get_prompt("sql_generator", "system_prompt")
         sql_prompt = f"Schema:\n{schema}\n\nUser: {question}\n\nSQL (SQLite, device_id = ?):"
         
         content = self.chat_completion([
@@ -26,8 +28,18 @@ class AIService:
             {"role": "user", "content": sql_prompt}
         ])
         
-        match = re.search(r"(SELECT[\s\S]*?(?:;|(?=\n|$)))", content, re.IGNORECASE)
-        return match.group(0) if match else ""
+        # Cleanup markdown and whitespace
+        content = re.sub(r"```(?:sql)?\s*", "", content, flags=re.IGNORECASE).replace("```", "").strip()
+        
+        # Match starting from SELECT until the end or a semicolon
+        match = re.search(r"(SELECT[\s\S]+)", content, re.IGNORECASE)
+        sql = match.group(1).strip() if match else ""
+        
+        # Ensure it's not cut off - if it has a semicolon, keep everything before it
+        if ";" in sql:
+            sql = sql.split(";")[0] + ";"
+            
+        return sql
 
     def generate_report(self, prompt: str) -> str:
         system_prompt = "You are a financial analysis engine. Return ONLY a raw JSON object string. Do not use markdown, do not include any explanatory text, do not use backticks."
