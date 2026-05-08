@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { parseJSON } from '../utils/parser';
 
 const API_BASE_URL = 'http://3.26.191.49:3000/api';
 
@@ -46,7 +47,7 @@ export const apiClient = {
       return txList;
     } catch (e) {
       const cached = await AsyncStorage.getItem('CACHED_TX');
-      return cached ? JSON.parse(cached) : [];
+      return cached ? parseJSON(cached, []) : [];
     }
   },
 
@@ -62,7 +63,7 @@ export const apiClient = {
       return null;
     } catch (e) {
       const cached = await AsyncStorage.getItem('CACHED_REPORT');
-      return cached ? JSON.parse(cached) : null;
+      return cached ? parseJSON(cached, null) : null;
     }
   },
 

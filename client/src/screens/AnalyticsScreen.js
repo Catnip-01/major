@@ -70,24 +70,19 @@ export const AnalyticsScreen = () => {
   };
 
   // 1. 14-Day Trend Line Chart
-  const trendPoints = (rawData?.daily_trend && Array.isArray(rawData.daily_trend) && rawData.daily_trend.length > 0) 
-    ? rawData.daily_trend.slice(-7).map(d => Number(d.total) || 0) 
-    : [0, 0];
-  
-  const trendLabels = (rawData?.daily_trend && Array.isArray(rawData.daily_trend) && rawData.daily_trend.length > 0)
-    ? rawData.daily_trend.slice(-7).map(d => (d.day && d.day.includes('-')) ? d.day.split('-')[2] : '??')
-    : ["-", "-"];
-
-  const trendData = {
-    labels: trendLabels,
-    datasets: [{
-      data: trendPoints
-    }]
-  };
+  const dailyTrend = rawData?.daily_trend || [];
+  const trendPoints = dailyTrend.length > 0 
+    ? dailyTrend.slice(-7).map(d => Number(d.total) || 0) 
+    : [0, 0, 0, 0, 0, 0, 0]; // Placeholder line
+  const trendLabels = dailyTrend.length > 0
+    ? dailyTrend.slice(-7).map(d => (d.day && typeof d.day === 'string' && d.day.includes('-')) ? d.day.split('-')[2] : '..')
+    : ["-", "-", "-", "-", "-", "-", "-"];
+  const trendData = { labels: trendLabels, datasets: [{ data: trendPoints }] };
 
   // 2. Bank Share Donut
-  const bankData = (rawData?.bank_share && Array.isArray(rawData.bank_share) && rawData.bank_share.length > 0) 
-    ? rawData.bank_share.map((b, i) => ({
+  const bankShare = rawData?.bank_share || [];
+  const bankData = bankShare.length > 0 
+    ? bankShare.map((b, i) => ({
         name: String(b.bank || 'Unknown'),
         population: Number(b.total) || 0,
         color: ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981'][i % 4],
@@ -98,22 +93,20 @@ export const AnalyticsScreen = () => {
 
   // 3. Time of Day Bar Chart
   const timeSlots = rawData?.time_slots || {};
+  const hasTimeData = Object.values(timeSlots).some(v => v > 0);
   const timeData = {
     labels: ["Morn", "Aft", "Eve", "Nit"],
     datasets: [{
-      data: [
-        Number(timeSlots.Morning) || 0,
-        Number(timeSlots.Afternoon) || 0,
-        Number(timeSlots.Evening) || 0,
-        Number(timeSlots.Night) || 0
-      ]
+      data: hasTimeData 
+        ? [Number(timeSlots.Morning || 0), Number(timeSlots.Afternoon || 0), Number(timeSlots.Evening || 0), Number(timeSlots.Night || 0)]
+        : [1, 1, 1, 1] // Placeholder bars
     }]
   };
 
   if (!report && !isGenerating) {
       return (
           <View style={[styles.centered, { backgroundColor: theme.background }]}>
-              <Activity size="large" color={theme.primary} />
+              <ActivityIndicator size="large" color={theme.primary} />
               <TouchableOpacity 
                 onPress={handleGenerate} 
                 style={{ marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: theme.primary, borderRadius: 16 }}
@@ -230,7 +223,7 @@ export const AnalyticsScreen = () => {
               <View key={i} style={[styles.impactCard, { backgroundColor: theme.card }]}>
                   <Text style={[styles.impactMerchant, { color: theme.text }]} numberOfLines={1}>{h.merchant}</Text>
                   <Text style={[styles.impactAmount, { color: theme.primary }]}>₹{h.amount}</Text>
-                  <Text style={[styles.impactDate, { color: theme.subtext }]}>{h.date.split('T')[0]}</Text>
+                  <Text style={[styles.impactDate, { color: theme.subtext }]}>{h.date?.split('T')[0] || 'N/A'}</Text>
                   <View style={styles.impactBar}>
                       <View style={[styles.impactFill, { width: `${Math.min((h.amount / (data?.total_spent || 1)) * 100 * 5, 100)}%`, backgroundColor: theme.primary }]} />
                   </View>
