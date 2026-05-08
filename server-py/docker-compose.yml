@@ -62,6 +62,7 @@ services:
     container_name: palfin-mongo
     ports:
       - "27017:27017"
+    command: ["mongod", "--noauth"]
     volumes:
       - mongo-data:/data/db
     restart: always
