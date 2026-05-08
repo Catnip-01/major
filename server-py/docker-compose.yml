@@ -58,11 +58,11 @@ services:
     restart: always
 
   mongo:
-    image: mongo:latest
+    image: mongo:7.0
     container_name: palfin-mongo
     ports:
       - "27017:27017"
-    command: ["mongod", "--noauth"]
+    command: ["mongod", "--noauth", "--wiredTigerCacheSizeGB", "0.5"]
     volumes:
       - mongo-data:/data/db
     restart: always
