@@ -74,25 +74,31 @@ export const AnalyticsScreen = () => {
 
   // 1. 14-Day Trend Line Chart
   const trendData = {
-    labels: rawData?.daily_trend?.slice(-7).map(d => d.day.split('-')[2]) || [],
+    labels: (rawData?.daily_trend?.length > 0) 
+      ? rawData.daily_trend.slice(-7).map(d => d.day.split('-')[2]) 
+      : ["-"],
     datasets: [{
-      data: rawData?.daily_trend?.slice(-7).map(d => Number(d.total)) || [0]
+      data: (rawData?.daily_trend?.length > 0) 
+        ? rawData.daily_trend.slice(-7).map(d => Number(d.total)) 
+        : [0]
     }]
   };
 
   // 2. Bank Share Donut
-  const bankData = rawData?.bank_share?.map((b, i) => ({
-    name: b.bank || 'Unknown',
-    population: Number(b.total) || 0,
-    color: ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981'][i % 4],
-    legendFontColor: theme.subtext,
-    legendFontSize: 12
-  })) || [];
+  const bankData = (rawData?.bank_share?.length > 0) 
+    ? rawData.bank_share.map((b, i) => ({
+        name: b.bank || 'Unknown',
+        population: Number(b.total) || 0,
+        color: ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981'][i % 4],
+        legendFontColor: theme.subtext,
+        legendFontSize: 12
+      }))
+    : [{ name: 'No Data', population: 1, color: theme.border, legendFontColor: theme.subtext, legendFontSize: 12 }];
 
   // 3. Time of Day Bar Chart
   const timeSlots = rawData?.time_slots || {};
   const timeData = {
-    labels: ["Morning", "Afternoon", "Evening", "Night"],
+    labels: ["Morn", "Aft", "Eve", "Nit"],
     datasets: [{
       data: [
         timeSlots.Morning || 0,
@@ -107,7 +113,9 @@ export const AnalyticsScreen = () => {
       return (
           <View style={[styles.centered, { backgroundColor: theme.background }]}>
               <Activity size="large" color={theme.primary} />
-              <Text style={[styles.loadingText, { color: theme.subtext }]}>Fetching your audit...</Text>
+              <TouchableOpacity onPress={handleGenerate} style={{ marginTop: 20, padding: 10, backgroundColor: theme.primary, borderRadius: 10 }}>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Generate First Report</Text>
+              </TouchableOpacity>
           </View>
       );
   }
@@ -246,38 +254,38 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 60 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { marginTop: 12, fontSize: 14, fontWeight: '600' },
-  header: { paddingHorizontal: 24, marginBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
-  subtitle: { fontSize: 13, marginTop: 2 },
+  header: { paddingHorizontal: 24, marginBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title: { fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
+  subtitle: { fontSize: 12, marginTop: 1 },
 
-  genBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, minWidth: 80, alignItems: 'center', justifyContent: 'center' },
-  genBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  genBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, minWidth: 70, alignItems: 'center', justifyContent: 'center' },
+  genBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
 
-  card: { marginHorizontal: 24, padding: 20, borderRadius: 24, marginBottom: 16, elevation: 1 },
-  halfCard: { width: screenWidth / 2 - 32, marginLeft: 24, padding: 16, borderRadius: 24, marginBottom: 16, elevation: 1 },
-  row: { flexDirection: 'row', marginBottom: 16 },
+  card: { marginHorizontal: 20, padding: 16, borderRadius: 20, marginBottom: 12, elevation: 1 },
+  halfCard: { width: screenWidth / 2 - 28, marginLeft: 20, padding: 14, borderRadius: 20, marginBottom: 12, elevation: 1 },
+  row: { flexDirection: 'row', marginBottom: 12 },
   
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
-  cardTitle: { fontSize: 15, fontWeight: '800' },
-  cardTitleSmall: { fontSize: 12, fontWeight: '800' },
-  chart: { marginVertical: 8, borderRadius: 16, marginLeft: -16 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 },
+  cardTitle: { fontSize: 14, fontWeight: '800' },
+  cardTitleSmall: { fontSize: 11, fontWeight: '800' },
+  chart: { marginVertical: 6, borderRadius: 16, marginLeft: -16 },
   
-  consistencyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
+  consistencyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   consItem: { flex: 1, alignItems: 'center' },
-  consValue: { fontSize: 20, fontWeight: '900', marginBottom: 4 },
-  consLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
-  consDivider: { width: 1, height: 30 },
+  consValue: { fontSize: 18, fontWeight: '900', marginBottom: 2 },
+  consLabel: { fontSize: 9, fontWeight: '700', textTransform: 'uppercase' },
+  consDivider: { width: 1, height: 25 },
 
-  impactScroll: { paddingLeft: 24, marginBottom: 24 },
-  impactCard: { width: 140, padding: 16, borderRadius: 20, marginRight: 12, elevation: 1 },
-  impactMerchant: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
-  impactAmount: { fontSize: 16, fontWeight: '900', marginBottom: 2 },
-  impactDate: { fontSize: 10, marginBottom: 12 },
-  impactBar: { height: 4, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 2, marginBottom: 6 },
-  impactFill: { height: 4, borderRadius: 2 },
-  impactPct: { fontSize: 9, fontWeight: '600', color: '#999' },
+  impactScroll: { paddingLeft: 20, marginBottom: 20 },
+  impactCard: { width: 130, padding: 14, borderRadius: 18, marginRight: 10, elevation: 1 },
+  impactMerchant: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
+  impactAmount: { fontSize: 14, fontWeight: '900', marginBottom: 2 },
+  impactDate: { fontSize: 9, marginBottom: 10 },
+  impactBar: { height: 3, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 2, marginBottom: 4 },
+  impactFill: { height: 3, borderRadius: 2 },
+  impactPct: { fontSize: 8, fontWeight: '600', color: '#999' },
 
-  summaryText: { fontSize: 14, lineHeight: 22, fontWeight: '500' },
-  sectionTitle: { fontSize: 18, fontWeight: '900', marginHorizontal: 24, marginBottom: 16, letterSpacing: -0.3 },
-  emptyText: { textAlign: 'center', marginVertical: 20, color: '#999' },
+  summaryText: { fontSize: 13, lineHeight: 20, fontWeight: '500' },
+  sectionTitle: { fontSize: 16, fontWeight: '900', marginHorizontal: 20, marginBottom: 12, letterSpacing: -0.3 },
+  emptyText: { textAlign: 'center', marginVertical: 16, color: '#999', fontSize: 12 },
 });

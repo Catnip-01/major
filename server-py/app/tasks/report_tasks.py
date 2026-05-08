@@ -158,10 +158,11 @@ def generate_daily_report(device_id: str = "all_active_devices"):
             }
             
             save_report(d_id, "daily", json.dumps(report_data))
-            emit_event(d_id, "report_complete", "Behavioral analysis complete!")
+            emit_event(d_id, "report_complete", "I've finished your personalized financial audit!")
             
         return {"status": "success", "processed": len(devices)}
     except Exception as e:
         import traceback
         logger.error(f"Report generation failed: {e}\n{traceback.format_exc()}")
         return {"status": "failed", "error": str(e)}
+ str(e)}

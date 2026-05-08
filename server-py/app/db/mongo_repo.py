@@ -54,17 +54,19 @@ def get_device_sessions(device_id: str) -> list[dict]:
     # Find all sessions for this device, return their ID, last message, and updatedAt
     cursor = chats_collection.find(
         {"deviceId": device_id},
-        {"_id": 0, "sessionId": 1, "updatedAt": 1, "messages": {"$slice": -1}}
+        {"_id": 0, "sessionId": 1, "updatedAt": 1, "createdAt": 1, "messages": {"$slice": -1}}
     ).sort("updatedAt", -1)
     
     sessions = []
     for doc in cursor:
         last_msg = doc["messages"][0]["text"] if doc.get("messages") else ""
+        # Handle cases where updatedAt might be missing or serialized differently
+        updated_at = doc.get("updatedAt") or doc.get("createdAt")
         sessions.append({
             "sessionId": doc["sessionId"],
             "title": last_msg[:50] + ("..." if len(last_msg) > 50 else "") if last_msg else "New Conversation",
             "lastMessage": last_msg,
-            "updatedAt": doc.get("updatedAt", doc.get("createdAt"))
+            "updatedAt": updated_at.isoformat() if hasattr(updated_at, 'isoformat') else str(updated_at)
         })
     return sessions
 

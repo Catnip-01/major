@@ -17,8 +17,8 @@ const FALLBACK = {
   burn_projection: 35000,
   behavioral_summary: 'Your spending is focused on Food & Dining. You are on track to exceed last month.',
   smart_tips: [
-    { title: 'Reduce Swiggy', description: 'You spent ₹5k on Food. Try cooking at home to save ₹2k.', impact: 'High' },
-    { title: 'Subscription Alert', description: 'Found 3 recurring charges. Cancel unused ones.', impact: 'Medium' },
+    { title: 'Reduce your Swiggy orders', description: 'You spent ₹5k on Food. Try cooking at home more to save ₹2k.', impact: 'High' },
+    { title: 'Subscription Check', description: 'I found 3 recurring charges. You might want to cancel the ones you don\'t use.', impact: 'Medium' },
   ],
   raw_data: {
     categories: [
@@ -199,7 +199,7 @@ export const DashboardScreen = ({ navigation }) => {
         <Text style={[styles.sectionHead, { color: theme.text }]}>Smart Tips</Text>
         {tips.map((tip, i) => (
           <View key={i} style={[styles.tipItem, { backgroundColor: theme.card }]}>
-            <View style={[styles.impactBadge, { backgroundColor: tip.impact === 'High' ? theme.error + '20' : theme.primary + '20' }]}>
+            <View style={[styles.impactBadge, { backgroundColor: tip.impact === 'High' ? theme.error + '15' : theme.primary + '15' }]}>
                <Text style={[styles.impactText, { color: tip.impact === 'High' ? theme.error : theme.primary }]}>{tip.impact}</Text>
             </View>
             <View style={{ flex: 1 }}>
@@ -214,9 +214,9 @@ export const DashboardScreen = ({ navigation }) => {
           style={[styles.cta, { backgroundColor: theme.primary }]}
           onPress={() => navigation.navigate('ChatDetail')}
         >
-          <MessageSquare size={20} color="#fff" />
+          <MessageSquare size={18} color="#fff" />
           <Text style={styles.ctaText}>Ask Finize anything</Text>
-          <ArrowUpRight size={16} color="rgba(255,255,255,0.7)" />
+          <ArrowUpRight size={14} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { paddingHorizontal: 20, paddingTop: 60 },
 
-  topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
+  topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   brand: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
   offlineRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
   offlineLabel: { fontSize: 10, fontWeight: '700' },
@@ -237,13 +237,13 @@ const styles = StyleSheet.create({
   streakText: { fontSize: 12, fontWeight: '700' },
   refreshBtn: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
 
-  card: { borderRadius: 24, padding: 22, marginBottom: 28 },
-  cardEyebrow: { color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 8 },
-  cardAmount: { color: '#fff', fontSize: 42, fontWeight: '900', letterSpacing: -1.5, marginBottom: 6 },
-  burnRow: { flexDirection: 'row', gap: 12, marginBottom: 18 },
-  cardSub: { color: 'rgba(255,255,255,0.65)', fontSize: 13, fontWeight: '600' },
+  card: { borderRadius: 24, padding: 20, marginBottom: 20 },
+  cardEyebrow: { color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 6 },
+  cardAmount: { color: '#fff', fontSize: 38, fontWeight: '900', letterSpacing: -1.5, marginBottom: 4 },
+  burnRow: { flexDirection: 'row', gap: 12, marginBottom: 14 },
+  cardSub: { color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: '600' },
   
-  velocityContainer: { marginBottom: 20 },
+  velocityContainer: { marginBottom: 16 },
   velocityLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   velocityLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '700' },
   velocityPct: { color: '#fff', fontSize: 11, fontWeight: '800' },
@@ -256,36 +256,36 @@ const styles = StyleSheet.create({
   cardLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   cardLinkText: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '700' },
 
-  sectionHead: { fontSize: 16, fontWeight: '800', marginBottom: 12, letterSpacing: -0.2 },
+  sectionHead: { fontSize: 16, fontWeight: '800', marginBottom: 10, letterSpacing: -0.2 },
 
-  barsCard: { borderRadius: 20, paddingHorizontal: 16, marginBottom: 20, elevation: 1 },
-  barRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 10 },
+  barsCard: { borderRadius: 20, paddingHorizontal: 16, marginBottom: 16, elevation: 1 },
+  barRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 10 },
   barDot: { width: 8, height: 8, borderRadius: 4 },
-  barLabel: { width: 60, fontSize: 13, fontWeight: '600' },
+  barLabel: { width: 60, fontSize: 12, fontWeight: '600' },
   barTrack: { flex: 1, height: 6, backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 3, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3 },
-  barAmt: { fontSize: 12, fontWeight: '700', width: 40, textAlign: 'right' },
+  barAmt: { fontSize: 11, fontWeight: '700', width: 40, textAlign: 'right' },
 
-  drainCard: { padding: 20, borderRadius: 20, marginBottom: 24, elevation: 1 },
-  drainHeader: { marginBottom: 12 },
-  drainTitle: { fontSize: 15, fontWeight: '800' },
-  drainSubtitle: { fontSize: 11, fontWeight: '600', marginTop: 2 },
-  drainRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
-  drainTrack: { flex: 1, height: 6, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 3, overflow: 'hidden' },
-  drainFill: { height: 6, borderRadius: 3 },
-  drainAmt: { fontSize: 14, fontWeight: '900' },
-  drainInfo: { fontSize: 11, color: '#999', fontWeight: '500' },
+  drainCard: { padding: 16, borderRadius: 20, marginBottom: 20, elevation: 1 },
+  drainHeader: { marginBottom: 10 },
+  drainTitle: { fontSize: 14, fontWeight: '800' },
+  drainSubtitle: { fontSize: 10, fontWeight: '600', marginTop: 1 },
+  drainRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 },
+  drainTrack: { flex: 1, height: 4, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 2, overflow: 'hidden' },
+  drainFill: { height: 4, borderRadius: 2 },
+  drainAmt: { fontSize: 13, fontWeight: '900' },
+  drainInfo: { fontSize: 10, color: '#999', fontWeight: '500' },
 
-  summaryStrip: { borderLeftWidth: 3, borderRadius: 14, padding: 16, marginBottom: 24 },
-  summaryEye: { fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 6 },
-  summaryText: { fontSize: 14, lineHeight: 21, fontWeight: '500' },
+  summaryStrip: { borderLeftWidth: 3, borderRadius: 14, padding: 14, marginBottom: 20 },
+  summaryEye: { fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 4 },
+  summaryText: { fontSize: 13, lineHeight: 20, fontWeight: '500' },
 
-  tipItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 16, borderRadius: 16, marginBottom: 10, elevation: 1 },
-  impactBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  impactText: { fontSize: 10, fontWeight: '800' },
-  tipTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
-  tipDesc: { fontSize: 13, lineHeight: 18 },
+  tipItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, borderRadius: 16, marginBottom: 8, elevation: 1 },
+  impactBadge: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  impactText: { fontSize: 9, fontWeight: '800' },
+  tipTitle: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  tipDesc: { fontSize: 12, lineHeight: 17 },
 
-  cta: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 16, borderRadius: 20, marginTop: 16, elevation: 4 },
-  ctaText: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '700' },
+  cta: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 18, marginTop: 12, elevation: 4 },
+  ctaText: { flex: 1, color: '#fff', fontSize: 14, fontWeight: '700' },
 });
