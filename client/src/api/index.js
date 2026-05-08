@@ -66,6 +66,17 @@ export const apiClient = {
     }
   },
 
+  fetchAnalytics: async (deviceId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/analytics?deviceId=${deviceId}`);
+      if (!res.ok) throw new Error('Server error');
+      const data = await res.json();
+      return data.status === 'success' ? data.data : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
   sendMessage: async (deviceId, message, isQuery = false, sessionId = "default") => {
     const endpoint = isQuery ? '/query' : '/chat';
     const payload = { deviceId, message, sessionId };
