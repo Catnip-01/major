@@ -1,12 +1,26 @@
 const { Worker } = require('bullmq');
 const { connection } = require('./queue');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const ChatHistory = require('./models/ChatHistory');
 const Transaction = require('./models/Transaction');
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'MISSING_KEY');
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+// Initialize Groq
+// Note: server-py is now used for AI tasks, keeping worker.js minimal
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+
+async function queryGroq(messages) {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${GROQ_API_KEY}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: messages
+        })
+    });
+    return await response.json();
+}
 
 function formatTransactions(transactions = []) {
   if (!Array.isArray(transactions) || !transactions.length) {
@@ -45,7 +59,7 @@ const chatWorker = new Worker('chatQueue', async job => {
     
     const txContext = formatTransactions(recentTx);
 
-    // 2. Build Gemini Payload
+    // 2. Build Groq Payload
     const systemInstruction = `You are Finize, a personal finance coach for Indian users.
 - Give short, practical, rupee-denominated advice based on the user's actual transactions.
 - Never invent numbers that aren't in the data.
@@ -55,27 +69,17 @@ const chatWorker = new Worker('chatQueue', async job => {
 User Context:
 ${txContext}`;
 
-    // Pass past conversation history
-    const pastContents = historyDoc.messages.slice(0, -1).map(m => ({
-       role: m.role,
-       parts: [{ text: m.text }]
-    }));
-
-    // Start chat session
-    const chat = model.startChat({
-        systemInstruction,
-        history: pastContents
-    });
-
-    // 3. Send message to Gemini
-    const result = await chat.sendMessage(messageText);
-    const responseText = result.response.text();
+    // 3. Send message to Groq
+    const chatCompletion = await queryGroq([
+        { role: 'system', content: systemInstruction },
+        ...historyDoc.messages.map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.text }))
+    ]);
+    const responseText = chatCompletion.choices[0].message.content;
 
     // 4. Save Bot Response to DB
-    historyDoc.messages.push({ role: 'model', text: responseText });
+    historyDoc.messages.push({ role: 'assistant', text: responseText });
     await historyDoc.save();
 
-    // The return value is what `job.returnvalue` holds, used by the client when polling for the job status.
     return {
       status: 'success',
       text: responseText

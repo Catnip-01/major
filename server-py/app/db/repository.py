@@ -1,7 +1,3 @@
-"""
-database.py — SQLite setup and helpers.
-Handles all classified transaction storage.
-"""
 import os
 import sqlite3
 import uuid
@@ -78,8 +74,6 @@ def init_db():
 def upsert_transactions(rows: list[dict]):
     """
     Insert or replace transaction rows.
-    Each row dict must have: device_id, sms_id, amount, currency,
-    merchant, category, type, date, bank, account, raw_msg_len
     """
     if not rows:
         return
@@ -115,7 +109,7 @@ def query_db(sql: str, params: tuple = ()) -> list[dict]:
 
 
 def get_recent_transactions(device_id: str, limit: int = 15) -> list[dict]:
-    """Fetch recent transactions for a device (for AI context)."""
+    """Fetch recent transactions for a device."""
     return query_db(
         "SELECT * FROM transactions WHERE device_id = ? ORDER BY created_at DESC LIMIT ?",
         (device_id, limit),
@@ -123,7 +117,7 @@ def get_recent_transactions(device_id: str, limit: int = 15) -> list[dict]:
 
 
 def save_chat_message(device_id: str, role: str, content: str, msg_type: str = 'text', metadata: str = None):
-    """Persist a chat message to the DB."""
+    """Persist a chat message."""
     conn = get_conn()
     conn.execute(
         "INSERT INTO chats (id, device_id, role, content, type, metadata) VALUES (?, ?, ?, ?, ?, ?)",
@@ -142,7 +136,7 @@ def get_chat_history(device_id: str, limit: int = 50) -> list[dict]:
 
 
 def save_report(device_id: str, report_type: str, data_json: str):
-    """Save a generated report JSON blob."""
+    """Save report."""
     conn = get_conn()
     conn.execute(
         "INSERT INTO reports (id, device_id, type, data) VALUES (?, ?, ?, ?)",
@@ -153,7 +147,7 @@ def save_report(device_id: str, report_type: str, data_json: str):
 
 
 def get_latest_report(device_id: str) -> dict | None:
-    """Fetch the most recent report for a device."""
+    """Fetch latest report."""
     rows = query_db(
         "SELECT * FROM reports WHERE device_id = ? ORDER BY created_at DESC LIMIT 1",
         (device_id,)
@@ -162,7 +156,7 @@ def get_latest_report(device_id: str) -> dict | None:
 
 
 def delete_device_data(device_id: str):
-    """Delete all transactions, chats, and reports for a device."""
+    """Delete all device data."""
     conn = get_conn()
     try:
         conn.execute("DELETE FROM transactions WHERE device_id = ?", (device_id,))
