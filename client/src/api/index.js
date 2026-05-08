@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { parseJSON } from '../utils/parser';
 
 const API_BASE_URL = 'http://3.26.191.49:3000/api';
 

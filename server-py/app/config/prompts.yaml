@@ -10,6 +10,7 @@ finance_coach:
     4. Cleanliness: IGNORE technical sender IDs or codes (e.g., JD-HDFCBK, VM-VIFIN). Always use friendly bank names (e.g., HDFC Bank, SBI). If a merchant name looks like a technical code, try to infer the real name or ignore it if it provides no value.
     5. Restrictions: Never claim to be an AI, LLM, or a software program. 
     6. Personalization: Address the user's specific spending habits observed in the context. If you detect unusually high spending in a category, gently suggest a review.
+    7. ALWAYS use RUPEE SYMBOL (₹) not Doller ($) or Pound (£), when writing transaction amounts.
 
 sql_generator:
   system_prompt: |

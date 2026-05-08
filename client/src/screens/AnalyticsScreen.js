@@ -70,7 +70,7 @@ export const AnalyticsScreen = () => {
   };
 
   // 1. 14-Day Trend Line Chart
-  const dailyTrend = rawData?.daily_trend || [];
+  const dailyTrend = report?.daily_trend || [];
   const trendPoints = dailyTrend.length > 0 
     ? dailyTrend.slice(-7).map(d => Number(d.total) || 0) 
     : [0, 0, 0, 0, 0, 0, 0]; // Placeholder line
@@ -80,7 +80,7 @@ export const AnalyticsScreen = () => {
   const trendData = { labels: trendLabels, datasets: [{ data: trendPoints }] };
 
   // 2. Bank Share Donut
-  const bankShare = rawData?.bank_share || [];
+  const bankShare = report?.bank_share || [];
   const bankData = bankShare.length > 0 
     ? bankShare.map((b, i) => ({
         name: String(b.bank || 'Unknown'),
@@ -92,7 +92,7 @@ export const AnalyticsScreen = () => {
     : [{ name: 'No Data', population: 1, color: theme.border, legendFontColor: theme.subtext, legendFontSize: 12 }];
 
   // 3. Time of Day Bar Chart
-  const timeSlots = rawData?.time_slots || {};
+  const timeSlots = report?.time_slots || {};
   const hasTimeData = Object.values(timeSlots).some(v => v > 0);
   const timeData = {
     labels: ["Morn", "Aft", "Eve", "Nit"],
@@ -139,7 +139,7 @@ export const AnalyticsScreen = () => {
           <TrendingUp size={18} color={theme.primary} />
           <Text style={[styles.cardTitle, { color: theme.text }]}>7-Day Spend Trend</Text>
         </View>
-        {rawData?.daily_trend?.length > 0 ? (
+        {report?.daily_trend?.length > 0 ? (
           <LineChart
             data={trendData}
             width={screenWidth - 48}
@@ -200,17 +200,17 @@ export const AnalyticsScreen = () => {
           </View>
           <View style={styles.consistencyRow}>
               <View style={styles.consItem}>
-                  <Text style={[styles.consValue, { color: theme.primary }]}>{data?.consistency?.zero_spend_days || 0}</Text>
+                  <Text style={[styles.consValue, { color: theme.primary }]}>{report?.consistency?.zero_spend_days || 0}</Text>
                   <Text style={[styles.consLabel, { color: theme.subtext }]}>Zero Days</Text>
               </View>
               <View style={[styles.consDivider, { backgroundColor: theme.border }]} />
               <View style={styles.consItem}>
-                  <Text style={[styles.consValue, { color: theme.error }]}>{data?.consistency?.high_spend_days || 0}</Text>
+                  <Text style={[styles.consValue, { color: theme.error }]}>{report?.consistency?.high_spend_days || 0}</Text>
                   <Text style={[styles.consLabel, { color: theme.subtext }]}>High Days</Text>
               </View>
               <View style={[styles.consDivider, { backgroundColor: theme.border }]} />
               <View style={styles.consItem}>
-                  <Text style={[styles.consValue, { color: theme.text }]}>₹{data?.consistency?.avg_daily || 0}</Text>
+                  <Text style={[styles.consValue, { color: theme.text }]}>₹{report?.consistency?.avg_daily || 0}</Text>
                   <Text style={[styles.consLabel, { color: theme.subtext }]}>Avg Daily</Text>
               </View>
           </View>
@@ -219,15 +219,15 @@ export const AnalyticsScreen = () => {
       {/* 4. Heavy Hitters - Impact Cards */}
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Heavy Hitters</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.impactScroll}>
-          {rawData?.heavy_hitters?.map((h, i) => (
+          {report?.heavy_hitters?.map((h, i) => (
               <View key={i} style={[styles.impactCard, { backgroundColor: theme.card }]}>
                   <Text style={[styles.impactMerchant, { color: theme.text }]} numberOfLines={1}>{h.merchant}</Text>
                   <Text style={[styles.impactAmount, { color: theme.primary }]}>₹{h.amount}</Text>
                   <Text style={[styles.impactDate, { color: theme.subtext }]}>{h.date?.split('T')[0] || 'N/A'}</Text>
                   <View style={styles.impactBar}>
-                      <View style={[styles.impactFill, { width: `${Math.min((h.amount / (data?.total_spent || 1)) * 100 * 5, 100)}%`, backgroundColor: theme.primary }]} />
+                      <View style={[styles.impactFill, { width: `${Math.min((h.amount / (report?.total_spent || 1)) * 100 * 5, 100)}%`, backgroundColor: theme.primary }]} />
                   </View>
-                  <Text style={styles.impactPct}>{Math.round((h.amount / (data?.total_spent || 1)) * 100)}% of total</Text>
+                  <Text style={styles.impactPct}>{Math.round((h.amount / (report?.total_spent || 1)) * 100)}% of total</Text>
               </View>
           ))}
       </ScrollView>
@@ -239,7 +239,7 @@ export const AnalyticsScreen = () => {
           <Text style={[styles.cardTitle, { color: theme.text }]}>Strategic Tip</Text>
         </View>
         <Text style={[styles.summaryText, { color: theme.text }]}>
-          {data?.behavioral_summary || "Analyzing your patterns..."}
+          {report?.behavioral_summary || "Analyzing your patterns..."}
         </Text>
       </View>
 
