@@ -1,14 +1,17 @@
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from celery.result import AsyncResult
-from celery_app import celery_app
+from celery_app import celery_app, REDIS_URL
 from app.db.repository import (
     get_recent_transactions, query_db, save_chat_message, get_chat_history, 
     get_latest_report, delete_device_data
 )
 import json
+import redis.asyncio as redis
 
 router = APIRouter()
+redis_client = redis.from_url(REDIS_URL)
 
 class SyncSmsRequest(BaseModel):
     deviceId: str
@@ -33,6 +36,23 @@ def _get_task_result(task_id: str) -> dict:
 @router.get("/health")
 def health():
     return {"status": "OK", "message": "Palfin Python backend running", "version": "2.0.0"}
+
+@router.get("/api/events/{deviceId}")
+async def event_stream(deviceId: str):
+    async def event_generator():
+        pubsub = redis_client.pubsub()
+        channel = f"events:{deviceId}"
+        await pubsub.subscribe(channel)
+        try:
+            yield f"data: {json.dumps({'event': 'connected', 'message': 'Connected to Palfin Pulse'})}\n\n"
+            async for message in pubsub.listen():
+                if message['type'] == 'message':
+                    data = message['data'].decode('utf-8')
+                    yield f"data: {data}\n\n"
+        finally:
+            await pubsub.unsubscribe(channel)
+            await pubsub.close()
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.post("/api/sync-sms")
 async def sync_sms(req: SyncSmsRequest):
@@ -73,7 +93,13 @@ async def get_history(deviceId: str = Query(...)):
 async def get_report(deviceId: str = Query(...)):
     report = get_latest_report(deviceId)
     if not report: return {"status": "none", "message": "No reports generated yet."}
-    return {"status": "success", "report": {**report, "data": json.loads(report["data"])}}
+    
+    try:
+        data = json.loads(report["data"])
+    except json.JSONDecodeError:
+        data = {"error": "Report data is malformed.", "raw": report["data"]}
+        
+    return {"status": "success", "report": {**report, "data": data}}
 
 @router.post("/api/reports/generate")
 async def generate_report(req: dict):
