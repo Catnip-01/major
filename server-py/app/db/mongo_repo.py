@@ -1,27 +1,51 @@
 import os
-from pymongo import MongoClient
+from pymongo import MongoClient, UpdateOne
 from datetime import datetime
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongo:27017")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongo:27017/palfin")
 client = MongoClient(MONGO_URI)
 db = client['palfin']
-chats_collection = db['chats']
+# Use 'chathistories' to match Mongoose default pluralization
+chats_collection = db['chathistories']
 
 def save_chat_message(device_id: str, role: str, content: str, msg_type: str = 'text', metadata: str = None):
-    chats_collection.insert_one({
-        "device_id": device_id,
-        "role": role,
-        "content": content,
-        "type": msg_type,
-        "metadata": metadata,
-        "created_at": datetime.utcnow()
-    })
+    # Map 'assistant' to 'model' for Node.js compatibility
+    db_role = 'model' if role == 'assistant' else role
+    
+    chats_collection.update_one(
+        {"deviceId": device_id},
+        {
+            "$push": {
+                "messages": {
+                    "role": db_role,
+                    "text": content,
+                    "type": msg_type,
+                    "metadata": metadata,
+                    "timestamp": datetime.utcnow()
+                }
+            },
+            "$setOnInsert": {"createdAt": datetime.utcnow()},
+            "$set": {"updatedAt": datetime.utcnow()}
+        },
+        upsert=True
+    )
 
 def get_chat_history(device_id: str, limit: int = 50) -> list[dict]:
-    cursor = chats_collection.find({"device_id": device_id}, {"_id": 0}) \
-                             .sort("created_at", 1) \
-                             .limit(limit)
-    return list(cursor)
+    doc = chats_collection.find_one({"deviceId": device_id}, {"_id": 0, "messages": {"$slice": -limit}})
+    if not doc or "messages" not in doc:
+        return []
+    
+    # Map 'model' back to 'assistant' for internal Python consistency
+    # and rename 'text' to 'content' for the API handler
+    history = []
+    for msg in doc["messages"]:
+        history.append({
+            "role": "assistant" if msg["role"] == "model" else "user",
+            "content": msg["text"],
+            "type": msg.get("type", "text"),
+            "metadata": msg.get("metadata")
+        })
+    return history
 
 def delete_device_chats(device_id: str):
-    chats_collection.delete_many({"device_id": device_id})
+    chats_collection.delete_one({"deviceId": device_id})
