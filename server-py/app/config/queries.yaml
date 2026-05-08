@@ -6,4 +6,44 @@ get_all_devices: "SELECT DISTINCT device_id FROM transactions"
 delete_transactions: "DELETE FROM transactions WHERE device_id = ?"
 delete_reports: "DELETE FROM reports WHERE device_id = ?"
 
-# Add any other complex queries here as needed
+# Advanced Analytics Queries
+spending_by_day_of_week: |
+  SELECT 
+    CASE CAST(strftime('%w', date) AS INT)
+      WHEN 0 THEN 'Sun' WHEN 1 THEN 'Mon' WHEN 2 THEN 'Tue' WHEN 3 THEN 'Wed' 
+      WHEN 4 THEN 'Thu' WHEN 5 THEN 'Fri' WHEN 6 THEN 'Sat'
+    END as day,
+    SUM(amount) as total 
+  FROM transactions 
+  WHERE device_id = ? AND type = 'debit'
+  GROUP BY day 
+  ORDER BY strftime('%w', date)
+
+merchant_frequency: |
+  SELECT merchant, COUNT(*) as count, SUM(amount) as total 
+  FROM transactions 
+  WHERE device_id = ? AND type = 'debit'
+  GROUP BY merchant 
+  ORDER BY count DESC 
+  LIMIT 10
+
+savings_rate_data: |
+  SELECT 
+    type, 
+    SUM(amount) as total 
+  FROM transactions 
+  WHERE device_id = ? 
+  GROUP BY type
+
+average_transaction_value: |
+  SELECT AVG(amount) as avg_value 
+  FROM transactions 
+  WHERE device_id = ? AND type = 'debit'
+
+subscription_candidates: |
+  SELECT merchant, amount, COUNT(*) as count
+  FROM transactions 
+  WHERE device_id = ? AND type = 'debit'
+  GROUP BY merchant, amount
+  HAVING count >= 2
+  ORDER BY count DESC

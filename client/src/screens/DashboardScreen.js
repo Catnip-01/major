@@ -13,20 +13,20 @@ import { useTheme } from '../context/ThemeContext';
 import { apiClient } from '../api';
 
 const FALLBACK = {
-  total_spent: '24,380',
-  tx_count: 38,
-  summary: 'Food & Dining is your biggest category. Your subscriptions renew soon.',
-  insights: [
-    'Grocery spend is 18% lower than last month',
-    'You have 3 active subscriptions due this week',
-    'You\'re on pace to save ₹5,000 more this month',
+  total_spent: 24380,
+  burn_projection: 35000,
+  behavioral_summary: 'Your spending is focused on Food & Dining. You are on track to exceed last month.',
+  smart_tips: [
+    { title: 'Reduce Swiggy', description: 'You spent ₹5k on Food. Try cooking at home to save ₹2k.', impact: 'High' },
+    { title: 'Subscription Alert', description: 'Found 3 recurring charges. Cancel unused ones.', impact: 'Medium' },
   ],
-  categories: [
-    { label: 'Food', amount: '₹8.2k', pct: 34, color: '#FF6B35' },
-    { label: 'Transport', amount: '₹4.5k', pct: 18, color: '#3B82F6' },
-    { label: 'Shopping', amount: '₹6.8k', pct: 28, color: '#8B5CF6' },
-    { label: 'Bills', amount: '₹2.9k', pct: 12, color: '#10B981' },
-  ],
+  raw_data: {
+    categories: [
+      { category: 'Food', total: 8200 },
+      { category: 'Transport', total: 4500 },
+      { category: 'Shopping', total: 6800 },
+    ]
+  }
 };
 
 export const DashboardScreen = ({ navigation }) => {
@@ -44,36 +44,40 @@ export const DashboardScreen = ({ navigation }) => {
       const data = await apiClient.fetchLatestReport(id);
       setReport(data || null);
       setOffline(!data);
-    } catch {
+    } catch (e) {
+      console.error(e);
       setOffline(true);
     }
     setLoading(false);
   };
 
   const formatCurrency = (val) => {
-    if (!val) return '0';
-    return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    if (val === undefined || val === null) return '0';
+    return Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
 
-  const rawTotal = report?.data?.total_spent;
-  const totalSpent = rawTotal ? formatCurrency(rawTotal) : FALLBACK.total_spent;
-  const txCount = report?.data?.tx_count || FALLBACK.tx_count;
-  const summary = report?.data?.summary || FALLBACK.summary;
-  const insights = report?.data?.insights || FALLBACK.insights;
+  const data = report?.data || FALLBACK;
+  const totalSpent = formatCurrency(data.total_spent);
+  const burnProjection = formatCurrency(data.burn_projection);
+  const summary = data.behavioral_summary || data.summary; // fallback for old reports
+  const tips = data.smart_tips || [];
   
-  // Calculate real categories from report data if available
-  const reportCats = report?.data?.graph_data?.categories;
-  const totalAmount = reportCats?.reduce((sum, c) => sum + (Number(c.total) || 0), 0) || 1;
+  // Calculate real categories from raw_data if available
+  const reportCats = data.raw_data?.categories || data.graph_data?.categories;
+  const totalAmount = reportCats?.reduce((sum, c) => sum + (Number(c.total || c.value) || 0), 0) || 1;
   
-  const cats = reportCats ? reportCats.map((c, i) => {
-    const amt = Number(c.total) || 0;
+  const cats = reportCats ? reportCats.slice(0, 3).map((c, i) => {
+    const amt = Number(c.total || c.value) || 0;
     return {
-      label: c.category || 'Other',
+      label: c.category || c.label || 'Other',
       amount: `₹${(amt / 1000).toFixed(1)}k`,
       pct: Math.round((amt / totalAmount) * 100),
-      color: ['#FF6B35', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B'][i % 5]
+      color: ['#FF6B35', '#3B82F6', '#8B5CF6'][i % 3]
     };
-  }) : FALLBACK.categories;
+  }) : [];
+
+  // Spending Velocity calculation
+  const velocityPct = data.burn_projection > 0 ? Math.min(Math.round((data.total_spent / data.burn_projection) * 100), 100) : 0;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
@@ -110,27 +114,38 @@ export const DashboardScreen = ({ navigation }) => {
           end={{ x: 1, y: 1 }}
           style={styles.card}
         >
-          <Text style={styles.cardEyebrow}>THIS MONTH</Text>
+          <Text style={styles.cardEyebrow}>MONTHLY SPEND</Text>
           <Text style={styles.cardAmount}>₹{totalSpent}</Text>
-          <Text style={styles.cardSub}>{txCount} transactions recorded</Text>
+          <Text style={styles.cardSub}>Projected: ₹{burnProjection} by month end</Text>
+
+          {/* Velocity Progress */}
+          <View style={styles.velocityContainer}>
+             <View style={styles.velocityLabelRow}>
+                <Text style={styles.velocityLabel}>Spending Velocity</Text>
+                <Text style={styles.velocityPct}>{velocityPct}%</Text>
+             </View>
+             <View style={styles.velocityTrack}>
+                <View style={[styles.velocityFill, { width: `${velocityPct}%` }]} />
+             </View>
+          </View>
 
           <View style={styles.cardRow}>
             <View style={styles.cardBadge}>
               <TrendingDown size={11} color="rgba(255,255,255,0.9)" />
-              <Text style={styles.cardBadgeText}>8% vs last month</Text>
+              <Text style={styles.cardBadgeText}>Behavioral Audit</Text>
             </View>
             <TouchableOpacity
               style={styles.cardLink}
               onPress={() => navigation.navigate('Insights')}
             >
-              <Text style={styles.cardLinkText}>Analytics</Text>
+              <Text style={styles.cardLinkText}>Detailed Analysis</Text>
               <ArrowUpRight size={13} color="rgba(255,255,255,0.9)" />
             </TouchableOpacity>
           </View>
         </LinearGradient>
 
         {/* Category bars */}
-        <Text style={[styles.sectionHead, { color: theme.text }]}>Breakdown</Text>
+        <Text style={[styles.sectionHead, { color: theme.text }]}>Top Categories</Text>
         <View style={[styles.barsCard, { backgroundColor: theme.card }]}>
           {cats.map((cat, i) => (
             <View key={i} style={[styles.barRow, i < cats.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
@@ -146,16 +161,21 @@ export const DashboardScreen = ({ navigation }) => {
 
         {/* AI summary strip */}
         <View style={[styles.summaryStrip, { backgroundColor: theme.primary + '12', borderLeftColor: theme.primary }]}>
-          <Text style={[styles.summaryEye, { color: theme.primary }]}>AI INSIGHT</Text>
+          <Text style={[styles.summaryEye, { color: theme.primary }]}>FINIZE PULSE</Text>
           <Text style={[styles.summaryText, { color: theme.text }]}>{summary}</Text>
         </View>
 
         {/* Tips */}
-        <Text style={[styles.sectionHead, { color: theme.text }]}>Smart tips</Text>
-        {insights.map((tip, i) => (
+        <Text style={[styles.sectionHead, { color: theme.text }]}>Smart Tips</Text>
+        {tips.map((tip, i) => (
           <View key={i} style={[styles.tipItem, { backgroundColor: theme.card }]}>
-            <Text style={[styles.tipNum, { color: theme.primary }]}>{i + 1}</Text>
-            <Text style={[styles.tipText, { color: theme.text }]}>{tip}</Text>
+            <View style={[styles.impactBadge, { backgroundColor: tip.impact === 'High' ? theme.error + '20' : theme.primary + '20' }]}>
+               <Text style={[styles.impactText, { color: tip.impact === 'High' ? theme.error : theme.primary }]}>{tip.impact}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+               <Text style={[styles.tipTitle, { color: theme.text }]}>{tip.title}</Text>
+               <Text style={[styles.tipDesc, { color: theme.subtext }]}>{tip.description}</Text>
+            </View>
           </View>
         ))}
 
@@ -188,7 +208,15 @@ const styles = StyleSheet.create({
   card: { borderRadius: 24, padding: 22, marginBottom: 28 },
   cardEyebrow: { color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 8 },
   cardAmount: { color: '#fff', fontSize: 42, fontWeight: '900', letterSpacing: -1.5, marginBottom: 6 },
-  cardSub: { color: 'rgba(255,255,255,0.55)', fontSize: 12, marginBottom: 18 },
+  cardSub: { color: 'rgba(255,255,255,0.65)', fontSize: 13, fontWeight: '600', marginBottom: 18 },
+  
+  velocityContainer: { marginBottom: 20 },
+  velocityLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  velocityLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '700' },
+  velocityPct: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  velocityTrack: { height: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 2 },
+  velocityFill: { height: 4, backgroundColor: '#fff', borderRadius: 2 },
+
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.12)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   cardBadgeText: { color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '600' },
@@ -209,9 +237,11 @@ const styles = StyleSheet.create({
   summaryEye: { fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 6 },
   summaryText: { fontSize: 14, lineHeight: 21, fontWeight: '500' },
 
-  tipItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 14, borderRadius: 16, marginBottom: 8, elevation: 1 },
-  tipNum: { fontSize: 14, fontWeight: '900', width: 16 },
-  tipText: { flex: 1, fontSize: 13, lineHeight: 20 },
+  tipItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 16, borderRadius: 16, marginBottom: 10, elevation: 1 },
+  impactBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  impactText: { fontSize: 10, fontWeight: '800' },
+  tipTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  tipDesc: { fontSize: 13, lineHeight: 18 },
 
   cta: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 16, borderRadius: 20, marginTop: 16, elevation: 4 },
   ctaText: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '700' },
