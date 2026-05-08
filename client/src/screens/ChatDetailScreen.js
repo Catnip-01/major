@@ -60,7 +60,6 @@ export const ChatDetailScreen = ({ navigation, route }) => {
     if (event.event.includes('status')) {
       setPulseMessage(event.message);
     }
-
     if (event.event.includes('complete')) {
       setPulseMessage('');
       setLoading(false);
@@ -80,7 +79,6 @@ export const ChatDetailScreen = ({ navigation, route }) => {
 
     try {
       const res = await apiClient.sendMessage(deviceId, text, isQueryMode, sessionId);
-
       if (res?.status === 'failed' || !res?.jobId) {
         setMessages(prev => [...prev, {
           id: Date.now().toString(),
@@ -226,7 +224,6 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 15, fontWeight: '700' },
   headerStatus: { fontSize: 11, fontWeight: '600', marginTop: 1 },
   queryToggle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-
   listContent: { padding: 16, paddingBottom: 8, flexGrow: 1 },
   bubbleWrap: { marginVertical: 4, maxWidth: '85%' },
   userWrap: { alignSelf: 'flex-end' },
@@ -235,15 +232,12 @@ const styles = StyleSheet.create({
   userBubble: { borderBottomRightRadius: 4 },
   botBubble: { borderBottomLeftRadius: 4, borderWidth: 1 },
   userText: { color: '#fff', fontSize: 15, lineHeight: 22, flexWrap: 'wrap' },
-
   emptyChat: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, marginTop: 80 },
   emptyChatIcon: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 16, elevation: 2 },
   emptyChatTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
   emptyChatSub: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
-
   typing: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 10, marginHorizontal: 16, marginBottom: 8, borderRadius: 16 },
   typingText: { fontSize: 12, fontWeight: '600' },
-
   inputArea: {
     flexDirection: 'row',
     alignItems: 'flex-end',
