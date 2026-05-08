@@ -1,9 +1,9 @@
 import json
-from celery_app import celery_app
-from app.db.repository import query_db, save_report
+from celery_app import celery_app, REDIS_URL
+from app.db.repository import query_db, save_report, get_all_device_ids
+from app.core.config_loader import config_loader
 from app.services.ai_service import ai_service
 import redis
-from celery_app import REDIS_URL
 
 def _get_redis():
     return redis.from_url(REDIS_URL)
@@ -11,16 +11,6 @@ def _get_redis():
 def emit_event(device_id: str, event_type: str, message: str):
     r = _get_redis()
     r.publish(f"events:{device_id}", json.dumps({"event": event_type, "message": message}))
-
-from app.db.repository import query_db, save_report
-from app.core.config_loader import config_loader
-
-# ... (other code)
-
-from app.db.repository import query_db, save_report, get_all_device_ids
-from app.core.config_loader import config_loader
-
-# ... (other code)
 
 @celery_app.task(name="generate_daily_report")
 def generate_daily_report(device_id: str = "all_active_devices"):
