@@ -3,6 +3,7 @@ import { PermissionsAndroid, Platform } from 'react-native';
 import SmsAndroid from 'react-native-get-sms-android';
 import { apiClient } from '../api';
 import { usePulse } from './usePulse';
+import { extractTransaction } from '../../extractor';
 
 const SyncContext = createContext();
 
@@ -29,49 +30,6 @@ export const SyncProvider = ({ children }) => {
       refreshServerTxs();
     }
   });
-
-  const extractTransaction = (body) => {
-    if (!body) return null;
-    const raw = body.trim();
-
-    // 1. HARDENING: Mandatory Transaction Keywords
-    const isTransaction = /(debited|credited|received|spent|payment|transfer|vpa|upi|a\/c|account|ref\s*no|txn|transaction)/i.test(raw);
-    if (!isTransaction) return null;
-
-    // 2. HARDENING: Negative Filters (Spam, Offers, OTPs)
-    const isSpam = /(offer|congratulations|win|lucky|pre-approved|apply\s*now|otp|verification\s*code|secret\s*code|lottery|discount|gift)/i.test(raw);
-    if (isSpam) return null;
-
-    // 3. Amount Extraction
-    let amountMatch = raw.match(/(?:INR|Rs\.?|₹)\s?([0-9,]+(?:\.[0-9]+)?)/i);
-    if (!amountMatch) return null;
-
-    let amount = parseFloat(amountMatch[1].replace(/,/g, ''));
-
-    // 4. Determine debit/credit
-    let type = 'debit';
-    if (raw.match(/(credited|received|added|deposited|reversed|refunded)/i)) {
-      type = 'credit';
-    }
-
-    // 5. Merchant Extraction
-    let merchant = '';
-    const upiMatch = raw.match(/UPI[/-].+?[/-].+?[/-]([^\s\n/]+)/i) || 
-                     raw.match(/(?:to|at|vpa)\s+([A-Za-z0-9@\s\.]+?)(?:\s+on|\s+ref|\s+using|\.|$)/i);
-    
-    if (upiMatch && upiMatch[1]) {
-      merchant = upiMatch[1].trim();
-      merchant = merchant.replace(/^[0-9]+|[0-9]+$/g, '').trim();
-      if (merchant.length > 30) merchant = merchant.substring(0, 30);
-    }
-
-    return {
-      amount,
-      merchant: merchant || 'Unknown Merchant',
-      type,
-      raw: body
-    };
-  };
 
   const fetchLocalSms = async () => {
     if (Platform.OS !== 'android') return [];
@@ -112,13 +70,12 @@ export const SyncProvider = ({ children }) => {
             const extracted = [];
 
             messages.forEach((msg) => {
-              const tx = extractTransaction(msg.body);
+              const tx = extractTransaction(msg.body, msg.address);
               if (tx) {
                 extracted.push({
                   ...tx,
                   smsId: msg._id.toString(),
                   date: new Date(msg.date).toISOString(),
-                  bank: msg.address,
                 });
               }
             });
