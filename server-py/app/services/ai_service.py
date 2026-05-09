@@ -1,23 +1,46 @@
 import os
 import re
-from groq import Groq
+import time
+import logging
+from groq import Groq, RateLimitError
 from dotenv import load_dotenv
 
 from app.core.config_loader import config_loader
 
 load_dotenv()
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 class AIService:
     def __init__(self):
         self.client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
         self.model = "llama-3.3-70b-versatile"
+        self.fallback_model = "llama-3.1-8b-instant"
 
-    def chat_completion(self, messages: list[dict]) -> str:
-        completion = self.client.chat.completions.create(
-            messages=messages,
-            model=self.model,
-        )
-        return completion.choices[0].message.content
+    def chat_completion(self, messages: list[dict], use_fallback=False) -> str:
+        model = self.fallback_model if use_fallback else self.model
+        retries = 3
+        delay = 5
+
+        for i in range(retries):
+            try:
+                completion = self.client.chat.completions.create(
+                    messages=messages,
+                    model=model,
+                )
+                return completion.choices[0].message.content
+            except RateLimitError as e:
+                logger.warning(f"Rate limit hit on {model} (attempt {i+1}/{retries}). Retrying in {delay}s...")
+                if i == retries - 1 and not use_fallback:
+                    logger.info(f"Switching to fallback model: {self.fallback_model}")
+                    return self.chat_completion(messages, use_fallback=True)
+                time.sleep(delay)
+                delay *= 2
+            except Exception as e:
+                logger.error(f"Error during chat completion: {e}")
+                raise e
+        raise Exception("Max retries exceeded for AI service.")
 
     def nl_to_sql(self, schema: str, question: str) -> str:
         system_prompt = config_loader.get_prompt("sql_generator", "system_prompt")
