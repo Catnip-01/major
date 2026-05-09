@@ -22,9 +22,7 @@ async def get_analytics(deviceId: str = Query(...)):
     }
     return {
         "status": "success",
-        "data": {
-            "analytics": analytics
-        }
+        "data": analytics
     }
 
 @router.get("/reports/latest")
