@@ -1,6 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query
 from app.db.repository import get_latest_report, delete_device_data, query_db
 from app.core.config_loader import config_loader
+from celery_app import celery_app
+import json
+
+router = APIRouter()
 @router.get("/analytics")
 async def get_analytics(deviceId: str = Query(...)):
     def get_data(query_name):
