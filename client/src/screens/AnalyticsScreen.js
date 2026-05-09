@@ -70,7 +70,7 @@ export const AnalyticsScreen = () => {
   };
 
   // 1. 14-Day Trend Line Chart
-  const dailyTrend = report?.daily_trend || [];
+  const dailyTrend = report?.analytics?.daily_trend || [];
   const trendPoints = dailyTrend.length > 0 
     ? dailyTrend.slice(-7).map(d => {
         const val = Number(d?.total);
@@ -83,7 +83,7 @@ export const AnalyticsScreen = () => {
   const trendData = { labels: trendLabels, datasets: [{ data: trendPoints }] };
 
   // 2. Bank Share Donut
-  const bankShare = report?.bank_share || [];
+  const bankShare = report?.analytics?.bank_share || [];
   const bankData = bankShare.length > 0 
     ? bankShare.map((b, i) => {
         const pop = Number(b?.total);
@@ -98,7 +98,7 @@ export const AnalyticsScreen = () => {
     : [{ name: 'No Data', population: 1, color: theme.border, legendFontColor: theme.subtext, legendFontSize: 12 }];
 
   // 3. Time of Day Bar Chart
-  const timeSlots = report?.time_slots || {};
+  const timeSlots = report?.analytics?.time_slots || {};
   const hasTimeData = Object.values(timeSlots).some(v => v > 0);
   const timeData = {
     labels: ["Morn", "Aft", "Eve", "Nit"],
@@ -113,6 +113,13 @@ export const AnalyticsScreen = () => {
         : [1, 1, 1, 1] // Placeholder bars
     }]
   };
+
+  // 3. Consistency Score (Analytics)
+  const consistency = report?.analytics?.consistency || [];
+  
+  // 4. Heavy Hitters (Analytics)
+  const heavyHitters = report?.analytics?.heavy_hitters || [];
+  const totalSpent = report?.data?.total_spent || 1;
 
   if (!report && !isGenerating) {
       return (

@@ -41,9 +41,9 @@ export const DashboardScreen = ({ navigation }) => {
     setLoading(true);
     try {
       const id = await apiClient.getDeviceId();
-      const data = await apiClient.fetchLatestReport(id);
-      setReport(data || null);
-      setOffline(!data);
+      const report = await apiClient.fetchLatestReport(id);
+      setReport(report || null);
+      setOffline(!report);
     } catch (e) {
       console.error(e);
       setOffline(true);
@@ -56,23 +56,23 @@ export const DashboardScreen = ({ navigation }) => {
     return Math.round(val).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
 
-  const data = report?.data || FALLBACK;
-  const totalSpent = formatCurrency(data.total_spent);
-  const burnProjection = formatCurrency(data.burn_projection);
+  const data = report?.data || {};
+  const analytics = report?.analytics || {};
+  const totalSpent = formatCurrency(data.total_spent || 0);
+  const burnProjection = formatCurrency(data.burn_projection || 0);
   const dailyBurn = formatCurrency(data.daily_burn_rate || 0);
-  const summary = data.behavioral_summary || data.summary; // fallback for old reports
+  const summary = data.behavioral_summary || data.summary || 'Welcome to Palfin.';
   const tips = data.smart_tips || [];
   const zeroStreak = data.consistency?.zero_spend_days || 0;
-  const microDrain = data.invisible_drain || { sum: 0, count: 0 };
   
-  // Calculate real categories from raw_data if available
-  const reportCats = data.raw_data?.categories || data.graph_data?.categories;
-  const totalAmount = reportCats?.reduce((sum, c) => sum + (Number(c.total || c.value) || 0), 0) || 1;
+  // Calculate real categories from analytics.bank_share
+  const reportCats = analytics.bank_share?.map(b => ({ category: b.bank, total: b.total })) || [];
+  const totalAmount = reportCats?.reduce((sum, c) => sum + (Number(c.total) || 0), 0) || 1;
   
   const cats = reportCats ? reportCats.slice(0, 3).map((c, i) => {
-    const amt = Number(c.total || c.value) || 0;
+    const amt = Number(c.total) || 0;
     return {
-      label: c.category || c.label || 'Other',
+      label: c.category || 'Other',
       amount: `₹${(amt / 1000).toFixed(1)}k`,
       pct: Math.round((amt / totalAmount) * 100),
       color: ['#FF6B35', '#3B82F6', '#8B5CF6'][i % 3]
@@ -84,8 +84,8 @@ export const DashboardScreen = ({ navigation }) => {
   const safeProj = Number(data.burn_projection) || 1;
   const velocityPct = Math.min(Math.round((safeSpent / safeProj) * 100), 100) || 0;
   
-  const safeMicroSum = Number(microDrain.sum) || 0;
-  const microPct = safeSpent > 0 ? Math.min(Math.round((safeMicroSum / safeSpent) * 100), 100) : 0;
+  const microDrain = analytics.consistency || { total: 0, count: 0 };
+  const microPct = safeSpent > 0 ? Math.min(Math.round((microDrain.total / safeSpent) * 100), 100) : 0;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
@@ -284,11 +284,11 @@ const styles = StyleSheet.create({
   summaryEye: { fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 4 },
   summaryText: { fontSize: 13, lineHeight: 20, fontWeight: '500' },
 
-  tipItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, borderRadius: 16, marginBottom: 8, elevation: 1 },
-  impactBadge: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  tipItem: { flexDirection: 'column', alignItems: 'flex-start', padding: 14, borderRadius: 16, marginBottom: 8, elevation: 1 },
+  impactBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 8, alignSelf: 'flex-start' },
   impactText: { fontSize: 9, fontWeight: '800' },
-  tipTitle: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
-  tipDesc: { fontSize: 12, lineHeight: 17 },
+  tipTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
+  tipDesc: { fontSize: 12, lineHeight: 17, width: '100%' },
 
   cta: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 18, marginTop: 12, elevation: 4 },
   ctaText: { flex: 1, color: '#fff', fontSize: 14, fontWeight: '700' },
