@@ -114,11 +114,9 @@ export const AnalyticsScreen = () => {
     }]
   };
 
-  // 3. Consistency Score (Analytics)
-  const consistency = report?.analytics?.consistency || [];
-  
-  // 4. Heavy Hitters (Analytics)
-  const heavyHitters = report?.analytics?.heavy_hitters || [];
+  // Heavy Hitters
+  const heavyHitters = report?.raw_data?.heavy_hitters || [];
+  const consistency = report?.consistency || [];
   const totalSpent = report?.data?.total_spent || 1;
 
   if (!report && !isGenerating) {

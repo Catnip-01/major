@@ -65,14 +65,14 @@ export const DashboardScreen = ({ navigation }) => {
   const tips = data.smart_tips || [];
   const zeroStreak = data.consistency?.zero_spend_days || 0;
   
-  // Calculate real categories from analytics.bank_share
-  const reportCats = analytics.bank_share?.map(b => ({ category: b.bank, total: b.total })) || [];
-  const totalAmount = reportCats?.reduce((sum, c) => sum + (Number(c.total) || 0), 0) || 1;
+  // Calculate real categories from raw_data if available
+  const reportCats = data.raw_data?.categories || data.graph_data?.categories;
+  const totalAmount = reportCats?.reduce((sum, c) => sum + (Number(c.total || c.value) || 0), 0) || 1;
   
   const cats = reportCats ? reportCats.slice(0, 3).map((c, i) => {
-    const amt = Number(c.total) || 0;
+    const amt = Number(c.total || c.value) || 0;
     return {
-      label: c.category || 'Other',
+      label: c.category || c.label || 'Other',
       amount: `₹${(amt / 1000).toFixed(1)}k`,
       pct: Math.round((amt / totalAmount) * 100),
       color: ['#FF6B35', '#3B82F6', '#8B5CF6'][i % 3]

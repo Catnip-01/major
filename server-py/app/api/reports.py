@@ -13,15 +13,17 @@ async def get_analytics(deviceId: str = Query(...)):
         sql = config_loader.get_query(query_name)
         return query_db(sql, (deviceId,))
 
+    analytics = {
+        "daily_trend": get_data("daily_spending_stats"),
+        "bank_share": get_data("bank_usage"),
+        "time_slots": get_data("time_of_day_breakdown"),
+        "heavy_hitters": get_data("heavy_hitters"),
+        "consistency": get_data("micro_transactions")
+    }
     return {
         "status": "success",
-        "data": {
-            "daily_trend": get_data("daily_spending_stats"),
-            "bank_share": get_data("bank_usage"),
-            "time_slots": get_data("time_of_day_breakdown"),
-            "heavy_hitters": get_data("heavy_hitters"),
-            "consistency": get_data("micro_transactions")
-        }
+        "data": analytics,
+        "analytics": analytics
     }
 
 @router.get("/reports/latest")
