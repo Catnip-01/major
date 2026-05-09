@@ -30,6 +30,7 @@ services:
       - MONGO_URI=mongodb://mongo:27017/palfin
       - SQLITE_PATH=/app/data/transactions.db
       - MODEL_DIR=/app/models
+      - CLASSIFIER_MODE=${CLASSIFIER_MODE}
     depends_on:
       - redis
     volumes:
