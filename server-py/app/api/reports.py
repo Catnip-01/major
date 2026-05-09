@@ -11,7 +11,7 @@ async def get_analytics(deviceId: str = Query(...)):
         sql = config_loader.get_query(query_name)
         return query_db(sql, (deviceId,))
 
-    # Get latest report for summary and consistency audit
+    # Get latest report for summary, consistency, and raw_data
     report = get_latest_report(deviceId)
     report_data = {}
     if report:
@@ -37,7 +37,7 @@ async def get_analytics(deviceId: str = Query(...)):
     return {
         "status": "success",
         "data": {
-            **analytics,
+            **report_data, # Include full report data (needs_wants_split, raw_data, etc)
             "analytics": analytics
         }
     }

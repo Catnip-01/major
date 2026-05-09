@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "palfin3",
-    "slug": "palfin-major",
-    "version": "3.0.0",
+    "name": "Palfin 3.5",
+    "slug": "palfin-3-5",
+    "version": "3.5.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "palfin",
@@ -27,7 +27,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.palfin2",
+      "package": "com.anonymous.palfin35",
       "permissions": [
         "READ_SMS",
         "RECEIVE_SMS"
