@@ -188,9 +188,9 @@ export const DashboardScreen = ({ navigation }) => {
                 <View style={styles.drainTrack}>
                     <View style={[styles.drainFill, { width: `${microPct}%`, backgroundColor: theme.error }]} />
                 </View>
-                <Text style={[styles.drainAmt, { color: theme.text }]}>₹{formatCurrency(microDrain.sum)}</Text>
+                <Text style={[styles.drainAmt, { color: theme.text }]}>₹{formatCurrency(microDrain.total || 0)}</Text>
             </View>
-            <Text style={styles.drainInfo}>You've made {microDrain.count} micro-transactions this month.</Text>
+            <Text style={styles.drainInfo}>You've made {microDrain.count || 0} micro-transactions this month.</Text>
         </View>
 
         {/* AI summary strip */}
@@ -202,11 +202,11 @@ export const DashboardScreen = ({ navigation }) => {
         {/* Tips */}
         <Text style={[styles.sectionHead, { color: theme.text }]}>Smart Tips</Text>
         {tips.map((tip, i) => (
-          <View key={i} style={[styles.tipItem, { backgroundColor: theme.card }]}>
+          <View key={i} style={[styles.tipItem, { backgroundColor: theme.card, width: '100%' }]}>
             <View style={[styles.impactBadge, { backgroundColor: tip.impact === 'High' ? theme.error + '15' : theme.primary + '15' }]}>
                <Text style={[styles.impactText, { color: tip.impact === 'High' ? theme.error : theme.primary }]}>{tip.impact}</Text>
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
                <Text style={[styles.tipTitle, { color: theme.text }]}>{tip.title}</Text>
                <Text style={[styles.tipDesc, { color: theme.subtext }]}>{tip.description}</Text>
             </View>

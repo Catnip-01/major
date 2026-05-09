@@ -216,17 +216,17 @@ export const AnalyticsScreen = () => {
           </View>
           <View style={styles.consistencyRow}>
               <View style={styles.consItem}>
-                  <Text style={[styles.consValue, { color: theme.primary }]}>{report?.consistency?.zero_spend_days || 0}</Text>
+                  <Text style={[styles.consValue, { color: theme.primary }]}>{report?.consistency?.[0]?.zero_spend_days || 0}</Text>
                   <Text style={[styles.consLabel, { color: theme.subtext }]}>Zero Days</Text>
               </View>
               <View style={[styles.consDivider, { backgroundColor: theme.border }]} />
               <View style={styles.consItem}>
-                  <Text style={[styles.consValue, { color: theme.error }]}>{report?.consistency?.high_spend_days || 0}</Text>
+                  <Text style={[styles.consValue, { color: theme.error }]}>{report?.consistency?.[0]?.high_spend_days || 0}</Text>
                   <Text style={[styles.consLabel, { color: theme.subtext }]}>High Days</Text>
               </View>
               <View style={[styles.consDivider, { backgroundColor: theme.border }]} />
               <View style={styles.consItem}>
-                  <Text style={[styles.consValue, { color: theme.text }]}>₹{report?.consistency?.avg_daily || 0}</Text>
+                  <Text style={[styles.consValue, { color: theme.text }]}>₹{Math.round(report?.consistency?.[0]?.avg_daily || 0)}</Text>
                   <Text style={[styles.consLabel, { color: theme.subtext }]}>Avg Daily</Text>
               </View>
           </View>
@@ -235,15 +235,15 @@ export const AnalyticsScreen = () => {
       {/* 4. Heavy Hitters - Impact Cards */}
       <Text style={[styles.sectionTitle, { color: theme.text }]}>Heavy Hitters</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.impactScroll}>
-          {report?.raw_data?.heavy_hitters?.map((h, i) => (
+          {report?.heavy_hitters?.map((h, i) => (
               <View key={i} style={[styles.impactCard, { backgroundColor: theme.card }]}>
                   <Text style={[styles.impactMerchant, { color: theme.text }]} numberOfLines={1}>{h.merchant}</Text>
                   <Text style={[styles.impactAmount, { color: theme.primary }]}>₹{h.amount}</Text>
                   <Text style={[styles.impactDate, { color: theme.subtext }]}>{h.date?.split('T')[0] || 'N/A'}</Text>
                   <View style={styles.impactBar}>
-                      <View style={[styles.impactFill, { width: `${Math.min((h.amount / (report?.total_spent || 1)) * 100 * 5, 100)}%`, backgroundColor: theme.primary }]} />
+                      <View style={[styles.impactFill, { width: `${Math.min((h.amount / (Number(report?.total_spent) || 1)) * 100 * 5, 100)}%`, backgroundColor: theme.primary }]} />
                   </View>
-                  <Text style={styles.impactPct}>{Math.round((h.amount / (report?.total_spent || 1)) * 100)}% of total</Text>
+                  <Text style={styles.impactPct}>{Math.round((h.amount / (Number(report?.total_spent) || 1)) * 100)}% of total</Text>
               </View>
           ))}
       </ScrollView>
